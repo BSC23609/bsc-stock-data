@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>HR Stock Report</title>
+<style>
+  /* Fixed 820px canvas so the headless screenshot always frames cleanly */
+  :root{--blue:#2ea6e0;--head:#1f6fb2;--yellow:#ffe08a;--line:#c9d3da;--ink:#1a2530;--mono:ui-monospace,Consolas,monospace;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:820px;background:#fff;color:var(--ink);
+       font-family:"Segoe UI",Arial,sans-serif;font-size:12px;padding:0 0 18px}
+  .title{background:var(--blue);color:#fff;text-align:center;font-weight:800;
+         font-size:16px;letter-spacing:.3px;padding:9px;border-bottom:2px solid #fff}
+  .row{display:flex;gap:22px;padding:10px 16px 0;align-items:flex-start}
+  .col{flex:1;min-width:0}
+  .datebox{margin:0 16px 6px auto;width:150px;background:var(--yellow);text-align:center;
+           font-weight:700;padding:5px;font-family:var(--mono);border:1px solid #e6c760}
+  .sec{background:var(--yellow);font-weight:800;padding:5px 8px;border:1px solid #e6c760;
+       margin:0 0 0;font-size:12px;letter-spacing:.2px}
+  table{width:100%;border-collapse:collapse;margin-bottom:14px}
+  th,td{border:1px solid var(--line);padding:3px 7px;font-size:11px;line-height:1.35}
+  thead th{background:#dbe9f4;font-weight:700;text-align:left}
+  th.n,td.n{text-align:right;font-family:var(--mono)}
+  tbody tr:nth-child(even){background:#f6f9fb}
+  .tot{font-weight:800;background:#dbe9f4!important}
+  .tot td{border-top:2px solid var(--head)}
+  .foot{padding:6px 16px 0;color:#6b7a86;font-size:10px}
+</style>
+</head>
+<body>
+  <div class="title">BHARAT STEEL (CHENNAI) PRIVATE LIMITED</div>
+  <div class="datebox" id="date">—</div>
+
+  <div style="padding:0 16px">
+    <div class="sec">BHARAT HR COIL STOCK</div>
+    <table id="coilTbl">
+      <thead><tr><th>Item</th><th class="n">Whs 38</th><th class="n">Grand Total</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="sec">BHARAT HR PLATE STOCK</div>
+    <table id="plateTbl">
+      <thead><tr><th>Item</th><th class="n">Nos</th><th class="n">Grand Total (MT)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="foot" id="foot"></div>
+
+<script>
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const rows=[];let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else{if(c==='"')q=true;else if(c===',')(row.push(cur),cur="");
+      else if(c==='\n')(row.push(cur),rows.push(row),row=[],cur="");
+      else if(c==='\r'){}else cur+=c;}}
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  const h=rows.shift().map(x=>x.trim());
+  return rows.filter(r=>r.length>1).map(r=>{const o={};h.forEach((k,i)=>o[k]=(r[i]??"").trim());return o;});
+}
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const f3=n=>n.toLocaleString('en-IN',{minimumFractionDigits:3,maximumFractionDigits:3});
+const f0=n=>n.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+async function build(){
+  const params=new URLSearchParams(location.search);
+  const d=params.get('date')||new Date().toLocaleDateString('en-GB');
+  document.getElementById('date').textContent=d;
+
+  const [c,p]=await Promise.all([
+    fetch('coils.csv?t='+Date.now()).then(r=>r.text()),
+    fetch('plates.csv?t='+Date.now()).then(r=>r.ok?r.text():'')
+  ]);
+  const coils=parseCSV(c), plates=p?parseCSV(p):[];
+
+  // coil pivot: sum Quantity by ItemName, sort desc
+  const m={};
+  coils.forEach(r=>{m[r.ItemName]=(m[r.ItemName]||0)+num(r.Quantity);});
+  const arr=Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  const cbody=document.querySelector('#coilTbl tbody');
+  cbody.innerHTML=arr.map(([n,q])=>`<tr><td>${n}</td><td class="n">${f3(q)}</td><td class="n">${f3(q)}</td></tr>`).join('');
+  const ctot=arr.reduce((s,[,q])=>s+q,0);
+  cbody.innerHTML+=`<tr class="tot"><td>Grand Total</td><td class="n">${f3(ctot)}</td><td class="n">${f3(ctot)}</td></tr>`;
+
+  // plate table
+  const pbody=document.querySelector('#plateTbl tbody');
+  const psorted=[...plates].sort((a,b)=>num(b.TotalQty)-num(a.TotalQty));
+  pbody.innerHTML=psorted.map(r=>`<tr><td>${r.ItemName}</td><td class="n">${f0(num(r.TotalNos))}</td><td class="n">${f3(num(r.TotalQty))}</td></tr>`).join('');
+  const ptot=psorted.reduce((s,r)=>s+num(r.TotalQty),0), pnos=psorted.reduce((s,r)=>s+num(r.TotalNos),0);
+  pbody.innerHTML+=`<tr class="tot"><td>Grand Total</td><td class="n">${f0(pnos)}</td><td class="n">${f3(ptot)}</td></tr>`;
+
+  document.getElementById('foot').textContent=`Generated ${new Date().toLocaleString('en-IN')} · source: SAP whs 38`;
+  document.body.setAttribute('data-ready','1'); // signal for headless screenshot
+}
+build();
+</script>
+</body>
+</html>

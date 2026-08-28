@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HR Stock — Bharat Steel (Chennai)</title>
+<link rel="icon" href="BSC.png" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --blue:#1367a6; --blue-dark:#0e4d7d; --ink:#14202b; --gray:#5b6b78;
+    --line:#e3e8ec; --bg:#f5f7f9; --amber:#c77a10; --good:#1a7f4b;
+    --mono:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       color:var(--ink);background:var(--bg);font-size:14px;line-height:1.4}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+
+  /* header rail — the steel-blue signature */
+  header{background:linear-gradient(180deg,var(--blue),var(--blue-dark));color:#fff}
+  .hbar{display:flex;align-items:center;gap:14px;padding:14px 16px;max-width:1180px;margin:0 auto;flex-wrap:wrap}
+  .hbar img{height:34px;background:#fff;padding:4px 7px;border-radius:6px}
+  .htitle{font-weight:700;font-size:16px;letter-spacing:.2px;line-height:1.15}
+  .hsub{font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.14em}
+  .hmeta{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:12px}
+  .hdate{font-family:var(--mono);opacity:.9}
+  .refresh{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;
+           padding:6px 12px;border-radius:7px;font-weight:600;font-size:12px;cursor:pointer}
+  .refresh:hover{background:rgba(255,255,255,.25)}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:18px 0 0}
+  .tab{padding:9px 16px;font-weight:600;font-size:13px;color:var(--gray);cursor:pointer;
+       border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none}
+  .tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+
+  /* kpi strip */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .kpi .lab{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--gray);font-weight:700}
+  .kpi .val{font-family:var(--mono);font-size:24px;font-weight:700;margin-top:3px;letter-spacing:-.5px}
+  .kpi .val small{font-size:12px;color:var(--gray);font-weight:600}
+
+  /* filter bar */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 14px}
+  .filters select,.filters input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+       font-size:13px;background:#fff;color:var(--ink);font-family:inherit}
+  .filters input[type=search]{min-width:180px;flex:1}
+  .filters .clr{color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;padding:6px 4px}
+  .fcount{font-size:12px;color:var(--gray);margin-left:auto;font-family:var(--mono)}
+
+  /* card + chart */
+  .grid2{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:820px){.grid2{grid-template-columns:1.6fr 1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .card h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--gray)}
+
+  /* table */
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);
+     font-weight:700;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+  th.num,td.num{text-align:right;font-family:var(--mono)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:hover{background:#f8fafb}
+  .brand{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 6px;
+         border-radius:5px;background:#eef3f7;color:var(--blue-dark)}
+  .qbar{height:5px;border-radius:3px;background:var(--blue);margin-top:4px}
+  .grade{font-family:var(--mono);font-size:12px;color:var(--gray)}
+  .item{font-weight:600}
+  .expand{cursor:pointer;color:var(--blue);font-family:var(--mono);font-size:11px}
+  .detail td{background:#f8fafb;padding:0}
+  .detail table{margin:0}
+  .detail th{background:#eef3f7;font-size:9px}
+  .tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none;font-family:var(--mono)}
+  .empty{text-align:center;color:var(--gray);padding:40px 0;font-size:13px}
+  .err{background:#fdecea;border:1px solid #f5c6c0;color:#a3271b;padding:12px 14px;border-radius:9px;margin:14px 0;font-size:13px}
+  footer{color:var(--gray);font-size:11px;text-align:center;padding:24px 0}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <img src="BSC.png" alt="BSC" onerror="this.style.display='none'"/>
+    <div>
+      <div class="htitle">HR Stock Dashboard</div>
+      <div class="hsub">Bharat Steel (Chennai) Pvt Ltd</div>
+    </div>
+    <div class="hmeta">
+      <span class="hdate" id="asof">—</span>
+      <button class="refresh" onclick="load()">↻ Refresh</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="errbox"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="coils" onclick="setTab('coils')">HR Coils</button>
+    <button class="tab" data-tab="plates" onclick="setTab('plates')">HR Plates</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="filters">
+    <input type="search" id="q" placeholder="Search item…" oninput="render()" />
+    <select id="fBrand" onchange="render()"><option value="">All brands</option></select>
+    <select id="fGrade" onchange="render()"><option value="">All grades</option></select>
+    <select id="fThk" onchange="render()"><option value="">All thickness</option></select>
+    <select id="fWid" onchange="render()"><option value="">All width</option></select>
+    <select id="fLen" onchange="render()" data-plateonly><option value="">All length</option></select>
+    <span class="clr" onclick="clearFilters()">Clear</span>
+    <span class="fcount" id="fcount"></span>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 id="tblTitle">Coil stock · warehouse 38</h3>
+      <div class="tblwrap"><table id="tbl"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+      <div class="empty" id="emptyMsg" style="display:none">No stock matches these filters.</div>
+    </div>
+    <div class="card">
+      <h3>Top items by tonnage</h3>
+      <canvas id="chart" height="260"></canvas>
+    </div>
+  </div>
+
+  <footer>
+    Data pushed from SAP (whs 38) · read-only · <span id="rowcount"></span>
+  </footer>
+</div>
+
+<script>
+// ---------- tiny robust CSV parser (handles BOM + quoted commas) ----------
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const rows=[]; let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else{
+      if(c==='"') q=true;
+      else if(c===',') {row.push(cur);cur="";}
+      else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}
+      else if(c==='\r'){}
+      else cur+=c;
+    }
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  const head=rows.shift().map(h=>h.trim());
+  return rows.filter(r=>r.length>1).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]??"").trim());return o;});
+}
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const fmt=(n,d=3)=>n.toLocaleString('en-IN',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmt0=n=>n.toLocaleString('en-IN',{maximumFractionDigits:0});
+
+let TAB='coils', COILS=[], PLATES=[], chart=null;
+let sortKey='qty', sortDir=-1, expanded=new Set();
+
+async function load(){
+  document.getElementById('errbox').innerHTML='';
+  try{
+    const bust='?t='+Date.now();
+    const [c,p]=await Promise.all([
+      fetch('coils.csv'+bust).then(r=>{if(!r.ok)throw 0;return r.text();}),
+      fetch('plates.csv'+bust).then(r=>r.ok?r.text():'')
+    ]);
+    COILS=parseCSV(c);
+    PLATES=p?parseCSV(p):[];
+    document.getElementById('asof').textContent='as of '+new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    buildFilterOptions();
+    render();
+  }catch(e){
+    document.getElementById('errbox').innerHTML=
+      '<div class="err">Couldn\'t load stock data. The refresh job may not have pushed yet — try again shortly.</div>';
+  }
+}
+
+function setTab(t){
+  TAB=t; expanded.clear();
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  document.querySelectorAll('[data-plateonly]').forEach(el=>el.style.display=(t==='plates')?'':'none');
+  sortKey='qty'; sortDir=-1;
+  buildFilterOptions(); clearFilters(); render();
+  document.getElementById('tblTitle').textContent = t==='coils'?'Coil stock · warehouse 38':'Plate stock';
+}
+
+// aggregate coils by item (matches the pivot)
+function coilAgg(){
+  const m={};
+  COILS.forEach(r=>{
+    const k=r.ItemName;
+    if(!m[k]) m[k]={ItemName:r.ItemName,Brand:r.Brand||'—',Grade:r.Grade||'—',
+                    Thickness:r.Thickness,Width:r.Width,Length:r.Length,qty:0,coils:0,rows:[]};
+    m[k].qty+=num(r.Quantity); m[k].coils++; m[k].rows.push(r);
+  });
+  return Object.values(m);
+}
+function plateAgg(){
+  return PLATES.map(r=>({ItemName:r.ItemName,Brand:r.Brand||'—',Grade:r.Grade||'—',
+    Thickness:r.Thickness,Width:r.Width,Length:r.Length,qty:num(r.TotalQty),nos:num(r.TotalNos)}));
+}
+
+function current(){ return TAB==='coils'?coilAgg():plateAgg(); }
+
+function buildFilterOptions(){
+  const data=current();
+  const uniq=k=>[...new Set(data.map(d=>d[k]).filter(v=>v&&v!=='—'))]
+      .sort((a,b)=>(parseFloat(a)||a)>(parseFloat(b)||b)?1:-1);
+  fill('fBrand',uniq('Brand'),'All brands');
+  fill('fGrade',uniq('Grade'),'All grades');
+  fill('fThk',uniq('Thickness'),'All thickness','mm');
+  fill('fWid',uniq('Width'),'All width');
+  fill('fLen',uniq('Length'),'All length');
+}
+function fill(id,vals,allLabel,suffix=''){
+  const s=document.getElementById(id),keep=s.value;
+  s.innerHTML='<option value="">'+allLabel+'</option>'+vals.map(v=>`<option>${v}${suffix?' '+suffix:''}</option>`).join('');
+  // strip suffix on compare
+  [...s.options].forEach(o=>{if(suffix&&o.value)o.value=o.text.replace(' '+suffix,'');});
+  if([...s.options].some(o=>o.value===keep)) s.value=keep;
+}
+function clearFilters(){
+  ['q','fBrand','fGrade','fThk','fWid','fLen'].forEach(id=>document.getElementById(id).value='');
+  render();
+}
+
+function applyFilters(data){
+  const q=document.getElementById('q').value.toLowerCase();
+  const b=document.getElementById('fBrand').value, g=document.getElementById('fGrade').value,
+        t=document.getElementById('fThk').value, w=document.getElementById('fWid').value,
+        l=document.getElementById('fLen').value;
+  return data.filter(d=>
+    (!q||d.ItemName.toLowerCase().includes(q))&&
+    (!b||d.Brand===b)&&(!g||d.Grade===g)&&
+    (!t||String(d.Thickness)===t)&&(!w||String(d.Width)===w)&&
+    (!l||String(d.Length)===l));
+}
+
+function render(){
+  const rows=applyFilters(current());
+  rows.sort((a,b)=>{
+    let x=a[sortKey],y=b[sortKey];
+    if(sortKey==='qty'||sortKey==='coils'||sortKey==='nos'||sortKey==='Thickness'||sortKey==='Width'){x=parseFloat(x)||0;y=parseFloat(y)||0;}
+    else {x=(''+x).toLowerCase();y=(''+y).toLowerCase();}
+    return x<y?-1*sortDir:x>y?sortDir:0;
+  });
+  renderKpis(rows);
+  TAB==='coils'?renderCoilTable(rows):renderPlateTable(rows);
+  renderChart(rows);
+  const total=rows.reduce((s,r)=>s+r.qty,0);
+  document.getElementById('fcount').textContent=`${rows.length} items · ${fmt(total)} MT`;
+  document.getElementById('rowcount').textContent=(TAB==='coils'?COILS.length+' coils':PLATES.length+' plate items')+' loaded';
+  document.getElementById('emptyMsg').style.display=rows.length?'none':'block';
+}
+
+function renderKpis(rows){
+  const total=rows.reduce((s,r)=>s+r.qty,0);
+  const box=document.getElementById('kpis');
+  if(TAB==='coils'){
+    const coils=rows.reduce((s,r)=>s+r.coils,0);
+    box.innerHTML=kpi('Total coil stock',fmt(total,3),'MT')+kpi('Line items',fmt0(rows.length))
+      +kpi('Coils',fmt0(coils))+kpi('Brands',fmt0(new Set(rows.map(r=>r.Brand)).size));
+  }else{
+    const nos=rows.reduce((s,r)=>s+r.nos,0);
+    box.innerHTML=kpi('Total plate stock',fmt(total,3),'MT')+kpi('Line items',fmt0(rows.length))
+      +kpi('Pieces (Nos)',fmt0(nos))+kpi('Brands',fmt0(new Set(rows.map(r=>r.Brand)).size));
+  }
+}
+const kpi=(l,v,s='')=>`<div class="kpi"><div class="lab">${l}</div><div class="val">${v} ${s?`<small>${s}</small>`:''}</div></div>`;
+
+function th(key,label,cls=''){
+  const arrow=sortKey===key?(sortDir>0?' ▲':' ▼'):'';
+  return `<th class="${cls}" onclick="sortBy('${key}')">${label}${arrow}</th>`;
+}
+function sortBy(k){ if(sortKey===k)sortDir*=-1; else{sortKey=k;sortDir=(k==='qty'||k==='coils'||k==='nos')?-1:1;} render(); }
+
+function renderCoilTable(rows){
+  const max=Math.max(1,...rows.map(r=>r.qty));
+  const t=document.getElementById('tbl');
+  t.querySelector('thead').innerHTML='<tr>'+th('ItemName','Item')+th('Brand','Brand')
+    +th('Grade','Grade')+th('Thickness','Thk','num')+th('Width','Width','num')
+    +th('coils','Coils','num')+th('qty','Stock (MT)','num')+'</tr>';
+  t.querySelector('tbody').innerHTML=rows.map(r=>{
+    const open=expanded.has(r.ItemName);
+    let html=`<tr>
+      <td><div class="item">${r.ItemName}</div>
+          <span class="expand" onclick="toggle('${r.ItemName.replace(/'/g,"\\'")}')">${open?'▾ hide':'▸ '+r.coils+' coils'}</span></td>
+      <td><span class="brand">${r.Brand}</span></td>
+      <td class="grade">${r.Grade}</td>
+      <td class="num">${r.Thickness||''}</td>
+      <td class="num">${r.Width||''}</td>
+      <td class="num">${r.coils}</td>
+      <td class="num">${fmt(r.qty)}<div class="qbar" style="width:${Math.max(6,r.qty/max*100)}%"></div></td>
+    </tr>`;
+    if(open){
+      html+=`<tr class="detail"><td colspan="7"><table><thead><tr>
+        <th>Batch</th><th>Coil No</th><th>Bin</th><th>GRPO</th><th>GRPO Date</th><th class="num">Qty</th></tr></thead><tbody>`
+        +r.rows.map(x=>`<tr><td class="grade">${x.BatchNum||''}</td><td class="grade">${x.CoilNo||''}</td>
+          <td>${x.Bin||'—'}</td><td class="grade">${x.GRPONo||''}</td><td class="grade">${x.GRPODate||''}</td>
+          <td class="num">${fmt(num(x.Quantity))}</td></tr>`).join('')
+        +`</tbody></table></td></tr>`;
+    }
+    return html;
+  }).join('');
+  const tot=rows.reduce((s,r)=>s+r.qty,0), tc=rows.reduce((s,r)=>s+r.coils,0);
+  t.querySelector('tfoot').innerHTML=`<tr class="tfoot"><td colspan="5">Grand Total</td>
+    <td class="num">${tc}</td><td class="num">${fmt(tot)}</td></tr>`;
+}
+
+function renderPlateTable(rows){
+  const max=Math.max(1,...rows.map(r=>r.qty));
+  const t=document.getElementById('tbl');
+  t.querySelector('thead').innerHTML='<tr>'+th('ItemName','Item')+th('Brand','Brand')+th('Grade','Grade')
+    +th('Thickness','Thk','num')+th('Width','Width','num')+th('Length','Length','num')
+    +th('nos','Nos','num')+th('qty','Stock (MT)','num')+'</tr>';
+  t.querySelector('tbody').innerHTML=rows.map(r=>`<tr>
+      <td class="item">${r.ItemName}</td>
+      <td><span class="brand">${r.Brand}</span></td>
+      <td class="grade">${r.Grade}</td>
+      <td class="num">${r.Thickness||''}</td>
+      <td class="num">${r.Width||''}</td>
+      <td class="num">${r.Length||''}</td>
+      <td class="num">${fmt0(r.nos)}</td>
+      <td class="num">${fmt(r.qty)}<div class="qbar" style="width:${Math.max(6,r.qty/max*100)}%"></div></td>
+    </tr>`).join('');
+  const tot=rows.reduce((s,r)=>s+r.qty,0), tn=rows.reduce((s,r)=>s+r.nos,0);
+  t.querySelector('tfoot').innerHTML=`<tr class="tfoot"><td colspan="6">Grand Total</td>
+    <td class="num">${fmt0(tn)}</td><td class="num">${fmt(tot)}</td></tr>`;
+}
+
+function toggle(name){ expanded.has(name)?expanded.delete(name):expanded.add(name); render(); }
+
+function renderChart(rows){
+  const top=[...rows].sort((a,b)=>b.qty-a.qty).slice(0,10);
+  const ctx=document.getElementById('chart');
+  if(chart)chart.destroy();
+  chart=new Chart(ctx,{type:'bar',data:{
+    labels:top.map(r=>r.ItemName.replace(/HR COIL |HR PLATE /,'').slice(0,20)),
+    datasets:[{data:top.map(r=>r.qty),backgroundColor:'#1367a6',borderRadius:4,barThickness:14}]
+  },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.raw)+' MT'}}},
+    scales:{x:{beginAtZero:true,grid:{color:'#eef2f5'},ticks:{font:{size:10}}},
+            y:{grid:{display:false},ticks:{font:{size:10}}}}}});
+}
+
+load();
+</script>
+</body>
+</html>
