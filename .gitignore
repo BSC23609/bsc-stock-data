@@ -1,0 +1,7 @@
+node_modules/
+*.log
+shot*.png
+shot*.mjs
+test_logic.mjs
+gen_sample.py
+package*.json
