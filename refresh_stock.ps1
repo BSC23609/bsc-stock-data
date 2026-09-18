@@ -284,12 +284,20 @@ try{
 
   # ---- push (pull-first to avoid the race we hit on weighbridge) ----
   Push-Location $RepoDir
-  git pull --rebase --quiet 2>&1 | Out-Null
-  git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_meta.json
-  $stamp=[DateTime]::Now.ToString('yyyy-MM-dd HH:mm')
-  git commit -m "stock refresh $stamp" 2>&1 | Out-Null
-  git push --quiet 2>&1 | Out-Null
-  Pop-Location
+  # git writes warnings to stderr; under EAP=Stop + 2>&1 those become terminating errors.
+  # Judge git by exit code only.
+  $prevEap=$ErrorActionPreference; $ErrorActionPreference='Continue'
+  try{
+    git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_meta.json 2>&1 | Out-Null
+    $stamp=[DateTime]::Now.ToString('yyyy-MM-dd HH:mm')
+    git commit -m "stock refresh $stamp" 2>&1 | Out-Null          # no-op if nothing changed
+    # commit first, THEN rebase: -X theirs = keep our freshly generated CSVs on conflict,
+    # --autostash tolerates any other unstaged edits sitting in the checkout
+    $pull = git pull --rebase --autostash -X theirs 2>&1
+    if($LASTEXITCODE -ne 0){ git rebase --abort 2>&1 | Out-Null; throw "git pull failed: $pull" }
+    $push = git push 2>&1
+    if($LASTEXITCODE -ne 0){ throw "git push failed: $push" }
+  } finally { $ErrorActionPreference=$prevEap; Pop-Location }
   Log "Pushed. Done."
 }
 catch{
