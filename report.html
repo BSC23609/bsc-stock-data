@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>HR Stock Report</title>
+<title>Stock · Sales · Purchase MIS Report</title>
 <style>
   /* Fixed 820px canvas so the headless screenshot always frames cleanly */
   :root{--blue:#2ea6e0;--head:#1f6fb2;--yellow:#ffe08a;--line:#c9d3da;--ink:#1a2530;--mono:ui-monospace,Consolas,monospace;}
   *{box-sizing:border-box;margin:0;padding:0}
-  body{width:820px;background:#fff;color:var(--ink);
+  body{width:1040px;background:#fff;color:var(--ink);
        font-family:"Segoe UI",Arial,sans-serif;font-size:12px;padding:0 0 18px}
   .title{background:var(--blue);color:#fff;text-align:center;font-weight:800;
          font-size:16px;letter-spacing:.3px;padding:9px;border-bottom:2px solid #fff}
@@ -31,7 +31,8 @@
   <div class="title">BHARAT STEEL (CHENNAI) PRIVATE LIMITED</div>
   <div class="datebox" id="date">—</div>
 
-  <div style="padding:0 16px">
+  <div class="row">
+  <div class="col" style="flex:0 0 440px">
     <div class="sec">BHARAT HR COIL STOCK</div>
     <table id="coilTbl">
       <thead><tr><th>Item</th><th class="n">Whs 38</th><th class="n">Grand Total</th></tr></thead>
@@ -43,6 +44,19 @@
       <thead><tr><th>Item</th><th class="n">Nos</th><th class="n">Grand Total (MT)</th></tr></thead>
       <tbody></tbody>
     </table>
+  </div>
+
+  <div class="col">
+    <div class="sec">BHARAT SALES REPORT <span id="fyLbl" style="font-weight:600;float:right"></span></div>
+    <table id="salesTbl"><thead></thead><tbody></tbody></table>
+
+    <div class="sec">BHARAT PURCHASE REPORT</div>
+    <table id="purchTbl"><thead></thead><tbody></tbody></table>
+
+    <div class="sec">WAREHOUSEWISE STOCK</div>
+    <table id="whsTbl"><thead></thead><tbody></tbody></table>
+    <div class="foot" id="whsLegend" style="padding:0 0 8px"></div>
+  </div>
   </div>
 
   <div class="foot" id="foot"></div>
@@ -69,11 +83,15 @@ async function build(){
   const d=params.get('date')||new Date().toLocaleDateString('en-GB');
   document.getElementById('date').textContent=d;
 
-  const [c,p]=await Promise.all([
+  const [c,p,ms,msa,mpu]=await Promise.all([
     fetch('coils.csv?t='+Date.now()).then(r=>r.text()),
-    fetch('plates.csv?t='+Date.now()).then(r=>r.ok?r.text():'')
+    fetch('plates.csv?t='+Date.now()).then(r=>r.ok?r.text():''),
+    fetch('mis_stock.csv?t='+Date.now()).then(r=>r.ok?r.text():''),
+    fetch('mis_sales.csv?t='+Date.now()).then(r=>r.ok?r.text():''),
+    fetch('mis_purchase.csv?t='+Date.now()).then(r=>r.ok?r.text():'')
   ]);
   const coils=parseCSV(c), plates=p?parseCSV(p):[];
+  const mstock=ms?parseCSV(ms):[], msales=msa?parseCSV(msa):[], mpurch=mpu?parseCSV(mpu):[];
 
   // coil pivot: sum Quantity by ItemName, sort desc
   const m={};
@@ -91,7 +109,32 @@ async function build(){
   const ptot=psorted.reduce((s,r)=>s+num(r.TotalQty),0), pnos=psorted.reduce((s,r)=>s+num(r.TotalNos),0);
   pbody.innerHTML+=`<tr class="tot"><td>Grand Total</td><td class="n">${f0(pnos)}</td><td class="n">${f3(ptot)}</td></tr>`;
 
-  document.getElementById('foot').textContent=`Generated ${new Date().toLocaleString('en-IN')} · source: SAP whs 38`;
+  // ---- MIS pivots (current FY, Apr..latest month) ----
+  const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+  const now=new Date(), fy=(now.getMonth()+1)>=4?now.getFullYear():now.getFullYear()-1;
+  const fyOf=(y,m)=>m>=4?y:y-1, idx=m=>(m+8)%12;
+  document.getElementById('fyLbl').textContent=`FY ${fy}-${String(fy+1).slice(2)}`;
+  function monthPivot(rows,tblId){
+    const data={},tot={};let latest=-1;
+    rows.forEach(r=>{const y=+r.Yr,m=+r.Mth;if(fyOf(y,m)!==fy)return;const i=idx(m);
+      (data[r.Category]??={})[i]=(data[r.Category][i]||0)+num(r.Qty);tot[i]=(tot[i]||0)+num(r.Qty);if(i>latest)latest=i;});
+    const cats=Object.keys(data).sort(), months=MONTHS.map((_,i)=>i).filter(i=>i<=latest);
+    const t=document.getElementById(tblId);
+    t.querySelector('thead').innerHTML=`<tr><th>Category</th>${months.map(i=>`<th class="n">${MONTHS[i]}</th>`).join('')}<th class="n">Grand Total</th></tr>`;
+    t.querySelector('tbody').innerHTML=cats.map(c=>`<tr><td>${c}</td>${months.map(i=>`<td class="n">${data[c][i]?f0(data[c][i]):''}</td>`).join('')}<td class="n"><b>${f0(Object.values(data[c]).reduce((a,b)=>a+b,0))}</b></td></tr>`).join('')
+      +`<tr class="tot"><td>Grand Total</td>${months.map(i=>`<td class="n">${f0(tot[i]||0)}</td>`).join('')}<td class="n">${f0(Object.values(tot).reduce((a,b)=>a+b,0))}</td></tr>`;
+  }
+  monthPivot(msales,'salesTbl'); monthPivot(mpurch,'purchTbl');
+  // warehouse-wise (excludes 45 job-work and 46 consumables, like the Excel)
+  const wd={},wt={},ws=new Set(),wn={};
+  mstock.filter(r=>r.WhsCode!=='45'&&r.WhsCode!=='46').forEach(r=>{const q=num(r.OnHand);(wd[r.Category]??={})[r.WhsCode]=(wd[r.Category][r.WhsCode]||0)+q;wt[r.WhsCode]=(wt[r.WhsCode]||0)+q;ws.add(r.WhsCode);wn[r.WhsCode]=r.WhsName;});
+  const wcats=Object.keys(wd).sort(), whs=[...ws].sort(), wtbl=document.getElementById('whsTbl');
+  wtbl.querySelector('thead').innerHTML=`<tr><th>Category</th>${whs.map(w=>`<th class="n">${w}</th>`).join('')}<th class="n">Grand Total</th></tr>`;
+  wtbl.querySelector('tbody').innerHTML=wcats.map(c=>`<tr><td>${c}</td>${whs.map(w=>`<td class="n">${wd[c][w]?f0(wd[c][w]):''}</td>`).join('')}<td class="n"><b>${f0(Object.values(wd[c]).reduce((a,b)=>a+b,0))}</b></td></tr>`).join('')
+    +`<tr class="tot"><td>Grand Total</td>${whs.map(w=>`<td class="n">${f0(wt[w])}</td>`).join('')}<td class="n">${f0(Object.values(wt).reduce((a,b)=>a+b,0))}</td></tr>`;
+  document.getElementById('whsLegend').textContent=whs.map(w=>`${w} = ${wn[w]||''}`).join(' · ');
+
+  document.getElementById('foot').textContent=`Generated ${new Date().toLocaleString('en-IN')} · source: SAP B1 (stock whs-wise excl. 45/46 · sales = A/R invoices · purchase = A/P invoices)`;
   document.body.setAttribute('data-ready','1'); // signal for headless screenshot
 }
 build();

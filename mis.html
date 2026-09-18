@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stock · Sales · Purchase MIS — Bharat Steel (Chennai)</title>
+<link rel="icon" href="BSC.png" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --blue:#1367a6; --blue-dark:#0e4d7d; --ink:#14202b; --gray:#5b6b78;
+    --line:#e3e8ec; --bg:#f5f7f9; --amber:#c77a10; --good:#1a7f4b; --red:#b3261e;
+    --yellow:#fff1c2; --head:#e6eef5;
+    --mono:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       color:var(--ink);background:var(--bg);font-size:14px;line-height:1.4}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 16px}
+
+  header{background:linear-gradient(180deg,var(--blue),var(--blue-dark));color:#fff}
+  .hbar{display:flex;align-items:center;gap:14px;padding:14px 16px;max-width:1280px;margin:0 auto;flex-wrap:wrap}
+  .hbar img{height:34px;background:#fff;padding:4px 7px;border-radius:6px}
+  .htitle{font-weight:700;font-size:16px;letter-spacing:.2px;line-height:1.15}
+  .hsub{font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.14em}
+  .hmeta{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+  .hdate{font-family:var(--mono);opacity:.9}
+  .hbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;text-decoration:none;
+        padding:6px 12px;border-radius:7px;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit}
+  .hbtn:hover{background:rgba(255,255,255,.25)}
+  .stale{background:#fff3cd;color:#7a5200;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700}
+
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:18px 0 0;overflow-x:auto}
+  .tab{padding:9px 16px;font-weight:600;font-size:13px;color:var(--gray);cursor:pointer;white-space:nowrap;
+       border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+  .tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .kpi .lab{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--gray);font-weight:700}
+  .kpi .val{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:3px;letter-spacing:-.5px;white-space:nowrap}
+  .kpi .val small{font-size:11px;color:var(--gray);font-weight:600}
+  .kpi .sub{font-size:11px;color:var(--gray);margin-top:2px;font-family:var(--mono)}
+  .up{color:var(--good)} .dn{color:var(--red)}
+
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 14px}
+  .filters select,.filters input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+       font-size:13px;background:#fff;color:var(--ink);font-family:inherit}
+  .filters input[type=search]{min-width:200px;flex:1}
+  .filters label{font-size:12px;color:var(--gray);display:flex;align-items:center;gap:5px}
+  .filters .clr{color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;padding:6px 4px}
+  .fcount{font-size:12px;color:var(--gray);margin-left:auto;font-family:var(--mono)}
+
+  .grid2{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:900px){.grid2{grid-template-columns:1fr 1fr}}
+  .grid2 .card{margin-bottom:0}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;min-width:0}
+  .card h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--gray);display:flex;align-items:center;gap:8px}
+  .card h3 .r{margin-left:auto;font-family:var(--mono);text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink);font-size:11px}
+  .chartbox{position:relative;height:280px}
+
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--gray);
+     font-weight:700;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap;user-select:none}
+  th.sortable{cursor:pointer}
+  th.num,td.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+  td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tbody tr:hover{background:#f8fafb}
+  tr.tot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none;font-family:var(--mono);background:var(--head)}
+  tr.tot td:first-child{font-family:inherit}
+  tr.cat>td{font-weight:700;cursor:pointer}
+  tr.grp>td{background:#fbfcfd}
+  tr.grp>td:first-child{padding-left:26px;font-weight:600;cursor:pointer}
+  tr.itm>td{background:#fff;font-size:12px}
+  tr.itm>td:first-child{padding-left:44px;color:var(--gray)}
+  .tw{display:inline-block;width:14px;color:var(--blue);font-family:var(--mono);font-size:11px}
+  td.cell{cursor:pointer}
+  td.cell:hover{background:#e8f1fa}
+  td.cell.sel{background:#dbe9f7;font-weight:700}
+  .pivot th.num.cur, .pivot td.num.cur{background:var(--yellow)}
+  .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 6px;
+       border-radius:5px;background:#eef3f7;color:var(--blue-dark);white-space:nowrap}
+  .qbar{height:4px;border-radius:3px;background:var(--blue);margin-top:3px}
+  .empty{text-align:center;color:var(--gray);padding:30px 0;font-size:13px}
+  .err{background:#fdecea;border:1px solid #f5c6c0;color:#a3271b;padding:12px 14px;border-radius:9px;margin:14px 0;font-size:13px}
+  .note{background:#fff8e1;border:1px solid #f0dc9a;color:#6b5200;padding:8px 12px;border-radius:9px;margin:14px 0;font-size:12px}
+  .scroll{max-height:520px;overflow:auto}
+  .scroll thead th{position:sticky;top:0;background:#fff;z-index:1}
+  .muted{color:var(--gray);font-size:11px}
+  footer{color:var(--gray);font-size:11px;text-align:center;padding:24px 0}
+  .pane{display:none}.pane.on{display:block}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <img src="BSC.png" alt="BSC" onerror="this.style.display='none'"/>
+    <div>
+      <div class="htitle">Stock · Sales · Purchase MIS</div>
+      <div class="hsub">Bharat Steel (Chennai) Pvt Ltd</div>
+    </div>
+    <div class="hmeta">
+      <span class="stale" id="stale" style="display:none">STALE</span>
+      <span class="hdate" id="asof">—</span>
+      <a class="hbtn" href="index.html">HR stock detail →</a>
+      <button class="hbtn" onclick="load()">↻ Refresh</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="errbox"></div>
+  <div class="note" id="samplenote" style="display:none">Showing <b>sample data</b> from the discovery run — item-level and customer/vendor detail will appear after the first scheduled refresh.</div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="overview" onclick="setTab('overview')">Overview</button>
+    <button class="tab" data-tab="sales" onclick="setTab('sales')">Sales</button>
+    <button class="tab" data-tab="purchase" onclick="setTab('purchase')">Purchase</button>
+    <button class="tab" data-tab="stock" onclick="setTab('stock')">Stock</button>
+  </div>
+
+  <div class="filters">
+    <label>FY <select id="fy" onchange="render()"></select></label>
+    <label>Month <select id="mon" onchange="render()"><option value="">FY to date</option></select></label>
+    <label id="wtoggle"><input type="checkbox" id="allWhs" onchange="render()"/> include job-work / consumables warehouses (45, 46)</label>
+    <span class="fcount" id="fcount"></span>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <!-- ================= OVERVIEW ================= -->
+  <div class="pane on" id="pane-overview">
+    <div class="card">
+      <h3>Monthly sales vs purchase <span class="r" id="ovChartSub"></span></h3>
+      <div class="chartbox"><canvas id="ovChart"></canvas></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Bharat sales report <span class="r">MT</span></h3><div class="tblwrap" id="ovSales"></div></div>
+      <div class="card"><h3>Bharat purchase report <span class="r">MT</span></h3><div class="tblwrap" id="ovPurch"></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card"><h3>Warehouse-wise stock <span class="r">MT · on hand</span></h3><div class="tblwrap" id="ovWhs"></div></div>
+    <div class="card">
+      <h3>Bharat HR coil stock · warehouse 38 <span class="r" id="ovCoilTot"></span></h3>
+      <div class="filters" style="margin:0 0 8px"><input type="search" id="coilQ" placeholder="Search coil item…" oninput="renderOverviewCoils()"/></div>
+      <div class="tblwrap scroll" id="ovCoils"></div>
+    </div>
+  </div>
+
+  <!-- ================= SALES / PURCHASE (shared template) ================= -->
+  <div class="pane" id="pane-sales">
+    <div class="filters" style="margin-top:0">
+      <input type="search" id="salesQ" placeholder="Search item / customer…" oninput="renderTx('sales')"/>
+      <select id="salesCat" onchange="renderTx('sales')"><option value="">All categories</option></select>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Monthly by category <span class="r">MT</span></h3><div class="chartbox"><canvas id="salesChart"></canvas></div></div>
+      <div class="card"><h3>Top customers <span class="r" id="salesPartySub"></span></h3><div class="tblwrap scroll" id="salesParty"></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card"><h3>Category → group → item <span class="r">MT · click a row to expand</span></h3><div class="tblwrap" id="salesTree"></div></div>
+  </div>
+
+  <div class="pane" id="pane-purchase">
+    <div class="filters" style="margin-top:0">
+      <input type="search" id="purchaseQ" placeholder="Search item / vendor…" oninput="renderTx('purchase')"/>
+      <select id="purchaseCat" onchange="renderTx('purchase')"><option value="">All categories</option></select>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Monthly by category <span class="r">MT</span></h3><div class="chartbox"><canvas id="purchaseChart"></canvas></div></div>
+      <div class="card"><h3>Top vendors <span class="r" id="purchasePartySub"></span></h3><div class="tblwrap scroll" id="purchaseParty"></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card"><h3>Category → group → item <span class="r">MT · click a row to expand</span></h3><div class="tblwrap" id="purchaseTree"></div></div>
+  </div>
+
+  <!-- ================= STOCK ================= -->
+  <div class="pane" id="pane-stock">
+    <div class="card"><h3>Category × warehouse <span class="r">MT on hand · click a cell to drill down</span></h3><div class="tblwrap" id="stockPivot"></div></div>
+    <div class="card">
+      <h3>Items <span class="r" id="stockItemsSub"></span></h3>
+      <div class="filters" style="margin:0 0 8px">
+        <input type="search" id="stockQ" placeholder="Search item…" oninput="renderStockItems()"/>
+        <select id="stockGrp" onchange="renderStockItems()"><option value="">All item groups</option></select>
+        <span class="clr" onclick="stockSel={};renderStock()">Clear selection</span>
+      </div>
+      <div class="tblwrap scroll" id="stockItems"></div>
+    </div>
+  </div>
+
+  <footer>Data pushed from SAP B1 every 15 min · read-only · <span id="rowcount"></span></footer>
+</div>
+
+<script>
+// ---------- helpers ----------
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+  const rows=[]; let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else{
+      if(c==='"') q=true;
+      else if(c===',') {row.push(cur);cur="";}
+      else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}
+      else if(c==='\r'){}
+      else cur+=c;
+    }
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  if(!rows.length) return [];
+  const head=rows.shift().map(h=>h.trim());
+  return rows.filter(r=>r.length>1).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]??"").trim());return o;});
+}
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const f0=n=>n.toLocaleString('en-IN',{maximumFractionDigits:0});
+const f1=n=>n.toLocaleString('en-IN',{minimumFractionDigits:1,maximumFractionDigits:1});
+const f3=n=>n.toLocaleString('en-IN',{minimumFractionDigits:3,maximumFractionDigits:3});
+const fcr=v=>v>=1e7?('₹'+(v/1e7).toLocaleString('en-IN',{maximumFractionDigits:2})+' Cr'):('₹'+(v/1e5).toLocaleString('en-IN',{maximumFractionDigits:1})+' L');
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MONTHS=['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+const fyOf=(y,m)=>m>=4?y:y-1;              // FY start year for a calendar (y,m)
+const fyIdx=m=>(m+8)%12;                    // 4→0 … 3→11
+const fyLabel=fy=>`${fy}-${String(fy+1).slice(2)}`;
+const EXCL_WHS=new Set(['45','46']);
+const PALETTE=['#1367a6','#e0862c','#1a7f4b','#8e4bb8','#c9364a','#5b6b78','#0fa3a3','#a67c00','#3d5a80','#b5651d'];
+
+let TAB='overview', STOCK=[], SALES=[], PURCH=[], META={}, charts={};
+let fyList=[], stockSel={}, expanded={sales:new Set(),purchase:new Set()};
+
+// ---------- load ----------
+async function load(){
+  document.getElementById('errbox').innerHTML='';
+  try{
+    const bust='?t='+Date.now();
+    const [s,sa,pu,me]=await Promise.all([
+      fetch('mis_stock.csv'+bust).then(r=>{if(!r.ok)throw 0;return r.text();}),
+      fetch('mis_sales.csv'+bust).then(r=>r.ok?r.text():''),
+      fetch('mis_purchase.csv'+bust).then(r=>r.ok?r.text():''),
+      fetch('mis_meta.json'+bust).then(r=>r.ok?r.json():{}).catch(()=>({}))
+    ]);
+    STOCK=parseCSV(s).map(r=>({...r,OnHand:num(r.OnHand),Committed:num(r.Committed),OnOrder:num(r.OnOrder)}));
+    const tx=r=>({...r,Yr:+r.Yr,Mth:+r.Mth,Qty:num(r.Qty),Value:num(r.Value),Docs:num(r.Docs),fy:fyOf(+r.Yr,+r.Mth)});
+    SALES=sa?parseCSV(sa).map(tx):[];
+    PURCH=pu?parseCSV(pu).map(tx):[];
+    META=me||{};
+    // as-of + staleness (from the refresh job's own stamp, not the browser clock)
+    const gen=META.generated?new Date(META.generated):null;
+    document.getElementById('asof').textContent='as of '+(gen||new Date()).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('stale').style.display=(gen&&(Date.now()-gen.getTime())>3*3600e3)?'':'none';
+    document.getElementById('samplenote').style.display=META.sample?'':'none';
+    buildControls(); render();
+    document.getElementById('rowcount').textContent=`${STOCK.length} stock rows · ${SALES.length} sales rows · ${PURCH.length} purchase rows`;
+  }catch(e){
+    document.getElementById('errbox').innerHTML='<div class="err">Couldn\'t load MIS data. The refresh job may not have pushed yet — try again shortly.</div>';
+  }
+}
+
+function buildControls(){
+  const fys=new Set([...SALES,...PURCH].map(r=>r.fy));
+  const now=new Date(); const curFy=fyOf(now.getFullYear(),now.getMonth()+1); fys.add(curFy);
+  fyList=[...fys].sort((a,b)=>b-a);
+  const fySel=document.getElementById('fy');
+  const prev=fySel.value;
+  fySel.innerHTML=fyList.map(f=>`<option value="${f}">${fyLabel(f)}</option>`).join('');
+  fySel.value=fyList.includes(+prev)?prev:String(curFy);
+  const mon=document.getElementById('mon');
+  const prevM=mon.value;
+  mon.innerHTML='<option value="">FY to date</option>'+MONTHS.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+  mon.value=prevM;
+  const fill=(id,vals)=>{const el=document.getElementById(id);const p=el.value;
+    el.innerHTML=el.options[0].outerHTML+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');el.value=vals.includes(p)?p:'';};
+  fill('salesCat',[...new Set(SALES.map(r=>r.Category))].sort());
+  fill('purchaseCat',[...new Set(PURCH.map(r=>r.Category))].sort());
+  fill('stockGrp',[...new Set(STOCK.map(r=>r.ItemGroup))].sort());
+}
+
+const selFy=()=>+document.getElementById('fy').value;
+const selMon=()=>{const v=document.getElementById('mon').value;return v===''?null:+v;};
+const allWhs=()=>document.getElementById('allWhs').checked;
+const stockRows=()=>allWhs()?STOCK:STOCK.filter(r=>!EXCL_WHS.has(r.WhsCode));
+
+function setTab(t){
+  TAB=t;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
+  document.getElementById('wtoggle').style.display=(t==='overview'||t==='stock')?'':'none';
+  render();
+}
+
+// ---------- pivot builders ----------
+// rows: tx rows for one FY → {cats:[...], data:{cat:{idx:qty}}, tot:{idx:qty}, latest:idx}
+function monthPivot(rows,fy){
+  const data={},tot={}; let latest=-1;
+  rows.filter(r=>r.fy===fy).forEach(r=>{
+    const i=fyIdx(r.Mth);
+    (data[r.Category]??={})[i]=(data[r.Category][i]||0)+r.Qty;
+    tot[i]=(tot[i]||0)+r.Qty; if(i>latest) latest=i;
+  });
+  return {cats:Object.keys(data).sort(),data,tot,latest};
+}
+function pivotTable(p,curIdx){
+  if(!p.cats.length) return '<div class="empty">No data for this FY.</div>';
+  const months=MONTHS.map((m,i)=>i).filter(i=>i<=p.latest);
+  const th=months.map(i=>`<th class="num${i===curIdx?' cur':''}">${MONTHS[i]}</th>`).join('');
+  const rows=p.cats.map(c=>{
+    const cells=months.map(i=>`<td class="num${i===curIdx?' cur':''}">${p.data[c][i]?f0(p.data[c][i]):''}</td>`).join('');
+    const gt=Object.values(p.data[c]).reduce((a,b)=>a+b,0);
+    return `<tr><td>${esc(c)}</td>${cells}<td class="num"><b>${f0(gt)}</b></td></tr>`;
+  }).join('');
+  const tcells=months.map(i=>`<td class="num${i===curIdx?' cur':''}">${f0(p.tot[i]||0)}</td>`).join('');
+  const gt=Object.values(p.tot).reduce((a,b)=>a+b,0);
+  return `<table class="pivot"><thead><tr><th>Category</th>${th}<th class="num">Grand total</th></tr></thead>
+    <tbody>${rows}<tr class="tot"><td>Grand Total</td>${tcells}<td class="num">${f0(gt)}</td></tr></tbody></table>`;
+}
+function whsPivot(rows){
+  const data={},whs=new Set(),tot={};
+  rows.forEach(r=>{(data[r.Category]??={})[r.WhsCode]=(data[r.Category][r.WhsCode]||0)+r.OnHand;whs.add(r.WhsCode);tot[r.WhsCode]=(tot[r.WhsCode]||0)+r.OnHand;});
+  return {cats:Object.keys(data).sort(),whs:[...whs].sort(),data,tot};
+}
+const whsName=code=>{const r=STOCK.find(x=>x.WhsCode===code);return r?r.WhsName:'';};
+
+// ---------- KPIs ----------
+function render(){
+  const fy=selFy(), mon=selMon(), now=new Date();
+  const curFy=fyOf(now.getFullYear(),now.getMonth()+1);
+  const curIdx=(fy===curFy)?fyIdx(now.getMonth()+1):11;
+  const kIdx=mon??curIdx;
+  const sum=(rows,pred)=>rows.filter(pred).reduce((a,r)=>a+r.Qty,0);
+  const sumV=(rows,pred)=>rows.filter(pred).reduce((a,r)=>a+r.Value,0);
+  const inFy=r=>r.fy===fy, inM=r=>r.fy===fy&&fyIdx(r.Mth)===kIdx, prevM=r=>(kIdx>0?(r.fy===fy&&fyIdx(r.Mth)===kIdx-1):(r.fy===fy-1&&fyIdx(r.Mth)===11));
+  const st=stockRows();
+  const totStock=st.reduce((a,r)=>a+r.OnHand,0);
+  const coil38=STOCK.filter(r=>r.WhsCode==='38').reduce((a,r)=>a+r.OnHand,0);
+  const sM=sum(SALES,inM), sP=sum(SALES,prevM), sY=sum(SALES,inFy), sYV=sumV(SALES,inFy);
+  const pM=sum(PURCH,inM), pP=sum(PURCH,prevM), pY=sum(PURCH,inFy), pYV=sumV(PURCH,inFy);
+  const delta=(a,b)=>b?`<span class="${a>=b?'up':'dn'}">${a>=b?'▲':'▼'} ${f0(Math.abs(a-b))} vs prev</span>`:'';
+  const ml=MONTHS[kIdx]+' '+(kIdx<9?fy:fy+1);
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi"><div class="lab">Total stock</div><div class="val">${f0(totStock)}<small> MT</small></div><div class="sub">${allWhs()?'all warehouses':'excl. 45 / 46'}</div></div>
+    <div class="kpi"><div class="lab">HR coil stock · whs 38</div><div class="val">${f0(coil38)}<small> MT</small></div><div class="sub">${STOCK.filter(r=>r.WhsCode==='38').length} items</div></div>
+    <div class="kpi"><div class="lab">Sales · ${ml}</div><div class="val">${f0(sM)}<small> MT</small></div><div class="sub">${delta(sM,sP)}</div></div>
+    <div class="kpi"><div class="lab">Sales · FY ${fyLabel(fy)}</div><div class="val">${f0(sY)}<small> MT</small></div><div class="sub">${sYV?fcr(sYV):''}</div></div>
+    <div class="kpi"><div class="lab">Purchase · ${ml}</div><div class="val">${f0(pM)}<small> MT</small></div><div class="sub">${delta(pM,pP)}</div></div>
+    <div class="kpi"><div class="lab">Purchase · FY ${fyLabel(fy)}</div><div class="val">${f0(pY)}<small> MT</small></div><div class="sub">${pYV?fcr(pYV):''}</div></div>`;
+  document.getElementById('fcount').textContent=META.dataFrom?`data from ${META.dataFrom}`:'';
+
+  if(TAB==='overview') renderOverview(fy,curIdx);
+  else if(TAB==='sales'||TAB==='purchase') renderTx(TAB);
+  else renderStock();
+}
+
+// ---------- OVERVIEW ----------
+function renderOverview(fy,curIdx){
+  const sp=monthPivot(SALES,fy), pp=monthPivot(PURCH,fy);
+  document.getElementById('ovSales').innerHTML=pivotTable(sp,curIdx);
+  document.getElementById('ovPurch').innerHTML=pivotTable(pp,curIdx);
+  // chart
+  const last=Math.max(sp.latest,pp.latest,0);
+  const labels=MONTHS.slice(0,last+1);
+  document.getElementById('ovChartSub').textContent='FY '+fyLabel(fy)+' · MT';
+  drawChart('ovChart',{type:'bar',data:{labels,datasets:[
+    {label:'Sales',data:labels.map((_,i)=>Math.round(sp.tot[i]||0)),backgroundColor:'#1367a6',borderRadius:4},
+    {label:'Purchase',data:labels.map((_,i)=>Math.round(pp.tot[i]||0)),backgroundColor:'#e0862c',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:11}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{beginAtZero:true,grid:{color:'#f0f3f5'},ticks:{font:{size:10}}}}}});
+  // warehouse-wise
+  const wp=whsPivot(stockRows());
+  const th=wp.whs.map(w=>`<th class="num" title="${esc(whsName(w))}">${w}</th>`).join('');
+  const rows=wp.cats.map(c=>`<tr><td>${esc(c)}</td>${wp.whs.map(w=>`<td class="num">${wp.data[c][w]?f0(wp.data[c][w]):''}</td>`).join('')}<td class="num"><b>${f0(Object.values(wp.data[c]).reduce((a,b)=>a+b,0))}</b></td></tr>`).join('');
+  const gt=Object.values(wp.tot).reduce((a,b)=>a+b,0);
+  document.getElementById('ovWhs').innerHTML=wp.cats.length?`<table class="pivot"><thead><tr><th>Category</th>${th}<th class="num">Grand total</th></tr></thead><tbody>${rows}
+    <tr class="tot"><td>Grand Total</td>${wp.whs.map(w=>`<td class="num">${f0(wp.tot[w])}</td>`).join('')}<td class="num">${f0(gt)}</td></tr></tbody></table>
+    <div class="muted" style="margin-top:6px">${wp.whs.map(w=>`<b>${w}</b> ${esc(whsName(w))}`).join(' · ')}</div>`:'<div class="empty">No stock rows.</div>';
+  renderOverviewCoils();
+}
+function renderOverviewCoils(){
+  const q=(document.getElementById('coilQ').value||'').toLowerCase();
+  const m={};
+  STOCK.filter(r=>r.WhsCode==='38').forEach(r=>{m[r.ItemName]=(m[r.ItemName]||0)+r.OnHand;});
+  const arr=Object.entries(m).filter(([n])=>!q||n.toLowerCase().includes(q)).sort((a,b)=>b[1]-a[1]);
+  const tot=arr.reduce((s,[,q])=>s+q,0), max=arr.length?arr[0][1]:1;
+  document.getElementById('ovCoilTot').textContent=`${arr.length} items · ${f3(tot)} MT`;
+  document.getElementById('ovCoils').innerHTML=arr.length?`<table><thead><tr><th>Item</th><th class="num">Whs 38</th><th class="num">Grand total</th></tr></thead><tbody>
+    ${arr.map(([n,q])=>`<tr><td><div>${esc(n)}</div><div class="qbar" style="width:${Math.max(2,q/max*100)}%"></div></td><td class="num">${f3(q)}</td><td class="num">${f3(q)}</td></tr>`).join('')}
+    <tr class="tot"><td>Grand Total</td><td class="num">${f3(tot)}</td><td class="num">${f3(tot)}</td></tr></tbody></table>`:'<div class="empty">No coil items match.</div>';
+}
+
+// ---------- SALES / PURCHASE ----------
+function renderTx(kind){
+  const rows=(kind==='sales'?SALES:PURCH), fy=selFy(), mon=selMon();
+  const q=(document.getElementById(kind+'Q').value||'').toLowerCase();
+  const cat=document.getElementById(kind+'Cat').value;
+  const base=rows.filter(r=>r.fy===fy&&(!cat||r.Category===cat)&&(mon===null||fyIdx(r.Mth)===mon));
+  const filt=base.filter(r=>!q||r.ItemName.toLowerCase().includes(q)||r.ItemGroup.toLowerCase().includes(q)||(r.CardName||'').toLowerCase().includes(q));
+  // chart: monthly stacked by category (ignores month filter so the shape stays visible)
+  const cats=[...new Set(rows.filter(r=>r.fy===fy).map(r=>r.Category))].sort();
+  const latest=rows.filter(r=>r.fy===fy).reduce((m,r)=>Math.max(m,fyIdx(r.Mth)),-1);
+  const labels=MONTHS.slice(0,latest+1);
+  drawChart(kind+'Chart',{type:'bar',data:{labels,datasets:cats.map((c,ci)=>({label:c,stack:'s',backgroundColor:PALETTE[ci%PALETTE.length],
+      data:labels.map((_,i)=>Math.round(rows.filter(r=>r.fy===fy&&r.Category===c&&fyIdx(r.Mth)===i&&(!q||r.ItemName.toLowerCase().includes(q)||(r.CardName||'').toLowerCase().includes(q))).reduce((a,r)=>a+r.Qty,0)))}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:11}}},y:{stacked:true,beginAtZero:true,grid:{color:'#f0f3f5'},ticks:{font:{size:10}}}}}});
+  // party table
+  const pm={}; filt.forEach(r=>{const k=r.CardName||'—';(pm[k]??={q:0,v:0,d:0});pm[k].q+=r.Qty;pm[k].v+=r.Value;pm[k].d+=r.Docs;});
+  const parties=Object.entries(pm).sort((a,b)=>b[1].q-a[1].q);
+  const ptot=parties.reduce((s,[,x])=>s+x.q,0);
+  document.getElementById(kind+'PartySub').textContent=(mon===null?'FY to date':MONTHS[mon])+' · '+f0(ptot)+' MT';
+  document.getElementById(kind+'Party').innerHTML=parties.length&&parties[0][0]!=='—'?`<table><thead><tr><th>#</th><th>${kind==='sales'?'Customer':'Vendor'}</th><th class="num">MT</th><th class="num">Share</th><th class="num">Value</th></tr></thead><tbody>
+    ${parties.slice(0,25).map(([n,x],i)=>`<tr><td class="num">${i+1}</td><td>${esc(n)}</td><td class="num">${f0(x.q)}</td><td class="num">${ptot?f1(x.q/ptot*100):0}%</td><td class="num">${x.v?fcr(x.v):''}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">Customer / vendor detail arrives with the first live refresh.</div>';
+  // tree
+  const months=MONTHS.map((m,i)=>i).filter(i=>i<=latest&&(mon===null||i===mon));
+  const tree={};
+  filt.forEach(r=>{const i=fyIdx(r.Mth);const c=tree[r.Category]??={t:{},g:{}};const g=c.g[r.ItemGroup]??={t:{},i:{}};const it=g.i[r.ItemName||r.ItemGroup]??={t:{},v:0};
+    c.t[i]=(c.t[i]||0)+r.Qty;g.t[i]=(g.t[i]||0)+r.Qty;it.t[i]=(it.t[i]||0)+r.Qty;it.v+=r.Value;});
+  const ex=expanded[kind];
+  const cells=t=>months.map(i=>`<td class="num">${t[i]?f0(t[i]):''}</td>`).join('')+`<td class="num"><b>${f0(Object.values(t).reduce((a,b)=>a+b,0))}</b></td>`;
+  let html=`<table class="pivot"><thead><tr><th>Category / group / item</th>${months.map(i=>`<th class="num">${MONTHS[i]}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`;
+  const tot={};
+  Object.keys(tree).sort().forEach(c=>{
+    const co=ex.has(c);
+    html+=`<tr class="cat" onclick="tog('${kind}','${esc(c)}')"><td><span class="tw">${co?'▾':'▸'}</span>${esc(c)}</td>${cells(tree[c].t)}</tr>`;
+    Object.entries(tree[c].t).forEach(([i,v])=>tot[i]=(tot[i]||0)+v);
+    if(!co) return;
+    Object.keys(tree[c].g).sort().forEach(g=>{
+      const gk=c+'|'+g, go=ex.has(gk);
+      html+=`<tr class="grp" onclick="tog('${kind}','${esc(gk)}')"><td><span class="tw">${go?'▾':'▸'}</span>${esc(g)}</td>${cells(tree[c].g[g].t)}</tr>`;
+      if(!go) return;
+      Object.entries(tree[c].g[g].i).sort((a,b)=>Object.values(b[1].t).reduce((x,y)=>x+y,0)-Object.values(a[1].t).reduce((x,y)=>x+y,0)).forEach(([it,o])=>{
+        html+=`<tr class="itm"><td>${esc(it)}</td>${cells(o.t)}</tr>`;
+      });
+    });
+  });
+  html+=`<tr class="tot"><td>Grand Total</td>${cells(tot)}</tr></tbody></table>`;
+  document.getElementById(kind+'Tree').innerHTML=Object.keys(tree).length?html:'<div class="empty">No rows match.</div>';
+}
+function tog(kind,key){const s=expanded[kind];s.has(key)?s.delete(key):s.add(key);renderTx(kind);}
+
+// ---------- STOCK ----------
+function renderStock(){
+  const wp=whsPivot(stockRows());
+  const sel=stockSel;
+  const cell=(c,w,v)=>`<td class="num cell${sel.cat===c&&sel.whs===w?' sel':''}" onclick="pick('${esc(c)}','${w}')">${v?f0(v):''}</td>`;
+  const th=`<th>Category</th>${wp.whs.map(w=>`<th class="num" title="${esc(whsName(w))}">${w}</th>`).join('')}<th class="num">Total</th>`;
+  const rows=wp.cats.map(c=>`<tr><td class="cell${sel.cat===c&&!sel.whs?' sel':''}" onclick="pick('${esc(c)}','')">${esc(c)}</td>${wp.whs.map(w=>cell(c,w,wp.data[c][w])).join('')}<td class="num"><b>${f0(Object.values(wp.data[c]).reduce((a,b)=>a+b,0))}</b></td></tr>`).join('');
+  const gt=Object.values(wp.tot).reduce((a,b)=>a+b,0);
+  document.getElementById('stockPivot').innerHTML=wp.cats.length?`<table class="pivot"><thead><tr>${th}</tr></thead><tbody>${rows}
+    <tr class="tot"><td>Grand Total</td>${wp.whs.map(w=>`<td class="num cell${!sel.cat&&sel.whs===w?' sel':''}" onclick="pick('','${w}')">${f0(wp.tot[w])}</td>`).join('')}<td class="num">${f0(gt)}</td></tr></tbody></table>
+    <div class="muted" style="margin-top:6px">${wp.whs.map(w=>`<b>${w}</b> ${esc(whsName(w))}`).join(' · ')}</div>`:'<div class="empty">No stock rows.</div>';
+  renderStockItems();
+}
+function pick(cat,whs){stockSel={cat:cat||null,whs:whs||null};renderStock();}
+function renderStockItems(){
+  const q=(document.getElementById('stockQ').value||'').toLowerCase(), grp=document.getElementById('stockGrp').value;
+  const rows=stockRows().filter(r=>(!stockSel.cat||r.Category===stockSel.cat)&&(!stockSel.whs||r.WhsCode===stockSel.whs)&&(!grp||r.ItemGroup===grp)
+     &&(!q||r.ItemName.toLowerCase().includes(q)||r.ItemCode.toLowerCase().includes(q))).sort((a,b)=>b.OnHand-a.OnHand);
+  const tot=rows.reduce((a,r)=>a+r.OnHand,0), com=rows.reduce((a,r)=>a+r.Committed,0), ord=rows.reduce((a,r)=>a+r.OnOrder,0);
+  document.getElementById('stockItemsSub').textContent=[stockSel.cat,stockSel.whs?('whs '+stockSel.whs):null].filter(Boolean).join(' · ')+(stockSel.cat||stockSel.whs?' · ':'')+`${rows.length} rows · ${f0(tot)} MT`;
+  document.getElementById('stockItems').innerHTML=rows.length?`<table><thead><tr><th>Item</th><th>Group</th><th>Whs</th><th>Grade</th><th class="num">Thk</th><th class="num">Width</th><th class="num">On hand</th><th class="num">Committed</th><th class="num">On order</th><th class="num">Available</th></tr></thead><tbody>
+    ${rows.slice(0,400).map(r=>`<tr><td><b>${esc(r.ItemName)}</b><div class="muted">${esc(r.ItemCode)}</div></td><td><span class="tag">${esc(r.ItemGroup)}</span></td><td class="num">${r.WhsCode}</td><td class="muted">${esc(r.Grade)}</td><td class="num">${r.Thickness?num(r.Thickness):''}</td><td class="num">${r.Width?num(r.Width):''}</td><td class="num"><b>${f3(r.OnHand)}</b></td><td class="num">${f3(r.Committed)}</td><td class="num">${f3(r.OnOrder)}</td><td class="num">${f3(r.OnHand-r.Committed)}</td></tr>`).join('')}
+    <tr class="tot"><td colspan="6">Total${rows.length>400?' (showing first 400)':''}</td><td class="num">${f3(tot)}</td><td class="num">${f3(com)}</td><td class="num">${f3(ord)}</td><td class="num">${f3(tot-com)}</td></tr></tbody></table>`:'<div class="empty">No items match.</div>';
+}
+
+// ---------- chart util ----------
+function drawChart(id,cfg){
+  if(typeof Chart==='undefined') return;
+  if(charts[id]) charts[id].destroy();
+  const el=document.getElementById(id); if(!el) return;
+  charts[id]=new Chart(el,cfg);
+}
+
+load();
+</script>
+</body>
+</html>

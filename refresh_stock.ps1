@@ -1,6 +1,8 @@
-<#
-  refresh_stock.ps1 — HR stock pipeline for stock.bharatsteels.in
-  Queries SAP MSSQL, writes coils.csv + plates.csv into the repo, pushes to GitHub.
+﻿<#
+  refresh_stock.ps1 — stock / sales / purchase pipeline for stock.bharatsteels.in
+  Queries SAP MSSQL, writes coils.csv + plates.csv (HR stock pages) and
+  mis_stock.csv + mis_sales.csv + mis_purchase.csv + mis_meta.json (MIS page)
+  into the repo, then pushes to GitHub. One job, one push.
   Run from PowerShell (NOT cmd — a .ps1 opens in Notepad from cmd):
       powershell -ExecutionPolicy Bypass -File C:\scripts\refresh_stock.ps1
   Schedule it the same way as the weighbridge refresh.
@@ -102,7 +104,133 @@ HAVING SUM(NetQty) <> 0 OR SUM(RowNos) <> 0
 ORDER BY ItemCode
 "@
 
+
+# ---- MIS queries: mirror the SAP saved queries behind the Excel pivot ----
+#   "Warehouse Stock Report" / "Sales Report" / "Purchase" (Query Manager, category 40)
+#   Category CASEs are copied verbatim so the dashboard reconciles to the pivot.
+
+$misStockSql = @"
+SELECT T0.ItemCode, T1.ItemName, T2.ItmsGrpNam AS ItemGroup,
+  CASE
+    WHEN T2.ItmsGrpNam IN ('SAIL H.R.PLATE','SAIL HR COIL','SAIL HR SHEET','HR Coil') THEN '1. SAIL HR'
+    WHEN T2.ItmsGrpNam = 'SAIL STRUCTURAL' THEN '2. SAIL STRUCTURALS'
+    WHEN T2.ItmsGrpNam = 'RINL TMT' THEN '3. RINL TMT'
+    WHEN T2.ItmsGrpNam = 'RINL STRL' THEN '4. RINL STRL'
+    WHEN T2.ItmsGrpNam IN ('JSW H.R.COIL','JSW H.R.PLATE','JSW H.R.SHEET') THEN '5. JSW HR'
+    WHEN T2.ItmsGrpNam IN ('TATA H.R.COIL','TATA H.R.SHEET') THEN '6. TATA HR'
+    WHEN T2.ItmsGrpNam IN ('SAIL TMT','SAIL TMT - SEQR') THEN '7. SAIL TMT'
+    WHEN T2.ItmsGrpNam IN ('Consumables','Consumables-Critical') THEN '9. CONSUMABLES'
+    ELSE '8. OTHERS'
+  END AS Category,
+  T0.WhsCode, T3.WhsName,
+  T0.OnHand, T0.IsCommited AS Committed, T0.OnOrder,
+  T1.U_Grade AS Grade, T1.U_Thick AS Thickness, T1.U_Width AS Width, T1.U_Length1 AS Length
+FROM OITW T0
+INNER JOIN OITM T1 ON T0.ItemCode = T1.ItemCode
+INNER JOIN OITB T2 ON T1.ItmsGrpCod = T2.ItmsGrpCod
+LEFT  JOIN OWHS T3 ON T3.WhsCode = T0.WhsCode
+WHERE T0.ItemCode NOT IN ('a-item') AND T0.OnHand > 0
+ORDER BY T0.WhsCode, T0.OnHand DESC
+"@
+
+# Sales: A/R invoices, same filters as the "Sales Report" query. Rolling from the
+# start of the previous financial year so the page can show FY-on-FY.
+$misSalesSql = @"
+SELECT Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth,
+       SUM(Qty) AS Qty, SUM(Value) AS Value, COUNT(DISTINCT DocEntry) AS Docs
+FROM (
+  SELECT
+    CASE
+      WHEN T9.ItmsGrpNam IN ('SAIL H.R.PLATE','SAIL HR SHEET','SAIL HR COIL','HR Coil') THEN '1. SAIL HR'
+      WHEN T9.ItmsGrpNam = 'SAIL STRUCTURAL' THEN '2. SAIL STRUCTURAL'
+      WHEN T9.ItmsGrpNam = 'RINL TMT'  THEN '3. RINL TMT'
+      WHEN T9.ItmsGrpNam = 'RINL STRL' THEN '4. RINL STRL'
+      WHEN T9.ItmsGrpNam IN ('JSW H.R.SHEET','JSW H.R.COIL','SAIL TMT - SEQR','SAIL TMT','SAIL P.M.PLATE','OTHERS','TATA H.R.SHEET') THEN '5. OTHERS'
+      ELSE NULL
+    END AS Category,
+    T9.ItmsGrpNam AS ItemGroup, T1.ItemCode, T6.ItemName, T0.CardName,
+    YEAR(T0.DocDate) AS Yr, MONTH(T0.DocDate) AS Mth,
+    T1.Quantity AS Qty, T1.LineTotal AS Value, T0.DocEntry
+  FROM OINV T0
+  INNER JOIN INV1 T1 ON T0.DocEntry = T1.DocEntry
+  LEFT  JOIN OITM T6 ON T1.ItemCode = T6.ItemCode
+  LEFT  JOIN OITB T9 ON T6.ItmsGrpCod = T9.ItmsGrpCod
+  WHERE T1.BaseType <> '13' AND T0.Canceled = 'N' AND T0.GSTTranTyp <> 'GD'
+    AND T1.Quantity > 0 AND T0.DocDate >= @StartDate
+) X
+WHERE Category IS NOT NULL
+GROUP BY Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth
+ORDER BY Yr, Mth, Category
+"@
+
+# Purchase: A/P invoices, same filters + line-level U_MOU categorisation as the "Purchase" query.
+$misPurchSql = @"
+SELECT Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth,
+       SUM(Qty) AS Qty, SUM(Value) AS Value, COUNT(DISTINCT DocEntry) AS Docs
+FROM (
+  SELECT
+    CASE
+      WHEN T1.U_MOU IN ('SAIL H.R.PLATE','SAIL HR COIL') THEN '1. SAIL HR'
+      WHEN T1.U_MOU = 'SAIL STRUCTURAL' THEN '2. SAIL STRUCTURALS'
+      WHEN T1.U_MOU = 'RINL TMT'  THEN '3. RINL TMT'
+      WHEN T1.U_MOU = 'RINL STRL' THEN '4. RINL STRL'
+      WHEN T1.U_MOU IN ('OTHERS','RINL ROUNDS','SAIL P.M.PLATE','TATA','TENDER','JSW H.R.COIL','SAIL TMT') THEN '5. OTHERS'
+      ELSE LTRIM(RTRIM(T1.U_MOU))
+    END AS Category,
+    LTRIM(RTRIM(T1.U_MOU)) AS ItemGroup, T1.ItemCode, T6.ItemName, T0.CardName,
+    YEAR(T0.DocDate) AS Yr, MONTH(T0.DocDate) AS Mth,
+    T1.Quantity AS Qty, T1.LineTotal AS Value, T0.DocEntry
+  FROM OPCH T0
+  INNER JOIN PCH1 T1 ON T0.DocEntry = T1.DocEntry
+  LEFT  JOIN OITM T6 ON T1.ItemCode = T6.ItemCode
+  WHERE T1.BaseType <> '18' AND T0.Canceled = 'N' AND T0.GSTTranTyp <> 'GD'
+    AND T1.Quantity > 0 AND LTRIM(RTRIM(ISNULL(T1.U_MOU,''))) <> ''
+    AND T0.DocDate >= @StartDate
+) X
+GROUP BY Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth
+ORDER BY Yr, Mth, Category
+"@
+
+function Invoke-SqlDated($sql, [string]$startDate){
+  $conn=New-Object System.Data.SqlClient.SqlConnection $connStr
+  $conn.Open()
+  $cmd=$conn.CreateCommand(); $cmd.CommandText=$sql; $cmd.CommandTimeout=180
+  $null=$cmd.Parameters.AddWithValue("@StartDate",$startDate)
+  $da=New-Object System.Data.SqlClient.SqlDataAdapter $cmd
+  $dt=New-Object System.Data.DataTable; [void]$da.Fill($dt)
+  $conn.Close(); return ,$dt
+}
+
+# DataTable -> CSV text (UTF-8, no BOM, quoted only when needed, dates as yyyy-MM-dd)
+function ConvertTo-CsvText([System.Data.DataTable]$dt){
+  $cols=@($dt.Columns | ForEach-Object { $_.ColumnName })
+  $esc={ param($s) if($null -eq $s){return ''}; if($s -match '[",\r\n]'){ '"'+($s -replace '"','""')+'"' } else { $s } }
+  $sb=New-Object System.Text.StringBuilder
+  [void]$sb.AppendLine((($cols | ForEach-Object { & $esc $_ }) -join ','))
+  foreach($r in $dt.Rows){
+    $vals=foreach($c in $cols){ $v=$r[$c]
+      if($v -is [DBNull] -or $null -eq $v){''} elseif($v -is [DateTime]){$v.ToString('yyyy-MM-dd')}
+      elseif($v -is [decimal] -or $v -is [double]){ ([decimal]$v).ToString([Globalization.CultureInfo]::InvariantCulture) }
+      else{ & $esc ([string]$v) } }
+    [void]$sb.AppendLine(($vals -join ','))
+  }
+  return $sb.ToString()
+}
+
 # ======================= RUN =======================
+# ---- lock: refuse to overlap with a still-running instance (stale after 10 min) ----
+$LockPath="$env:TEMP\refresh_stock.lock"
+if(Test-Path $LockPath){
+  $age=(Get-Date)-(Get-Item $LockPath).LastWriteTime
+  if($age.TotalMinutes -lt 10){ Log "Another instance is running (lock age $([int]$age.TotalSeconds)s). Exiting."; exit 0 }
+  Remove-Item $LockPath -Force
+}
+New-Item $LockPath -ItemType File -Force | Out-Null
+
+# Financial year starts 1 April. Pull from the start of the PREVIOUS FY.
+$now=Get-Date; $fy= if($now.Month -ge 4){$now.Year}else{$now.Year-1}
+$StartDate=(Get-Date -Year ($fy-1) -Month 4 -Day 1).ToString('yyyy-MM-dd')
+
 try{
   Log "Querying coils…"
   $coils = Invoke-Sql $coilSql
@@ -137,10 +265,25 @@ try{
   [IO.File]::WriteAllText("$RepoDir\plates.csv", ($plateOut | ConvertTo-Csv -NoTypeInformation) -join "`r`n", $enc)
   Log "CSVs written."
 
+  # ---- MIS: stock / sales / purchase ----
+  Log "Querying MIS stock…";    $misStock=Invoke-Sql $misStockSql;                 Log "  $($misStock.Rows.Count) rows"
+  Log "Querying MIS sales…";    $misSales=Invoke-SqlDated $misSalesSql $StartDate;  Log "  $($misSales.Rows.Count) rows"
+  Log "Querying MIS purchase…"; $misPurch=Invoke-SqlDated $misPurchSql $StartDate;  Log "  $($misPurch.Rows.Count) rows"
+  if($misStock -is [Array]){$misStock=$misStock[-1]}; if($misSales -is [Array]){$misSales=$misSales[-1]}; if($misPurch -is [Array]){$misPurch=$misPurch[-1]}
+
+  if($misStock.Rows.Count -eq 0){ throw "MIS stock query returned 0 rows — not overwriting dashboard data." }
+  [IO.File]::WriteAllText("$RepoDir\mis_stock.csv",    (ConvertTo-CsvText $misStock), $enc)
+  [IO.File]::WriteAllText("$RepoDir\mis_sales.csv",    (ConvertTo-CsvText $misSales), $enc)
+  [IO.File]::WriteAllText("$RepoDir\mis_purchase.csv", (ConvertTo-CsvText $misPurch), $enc)
+  $meta=@{ generated=$now.ToString('yyyy-MM-ddTHH:mm:ss'); fyStart="$fy-04-01"; dataFrom=$StartDate;
+           rows=@{ coils=$coils.Rows.Count; plates=$plates.Rows.Count; stock=$misStock.Rows.Count; sales=$misSales.Rows.Count; purchase=$misPurch.Rows.Count } }
+  [IO.File]::WriteAllText("$RepoDir\mis_meta.json", ($meta | ConvertTo-Json -Compress), $enc)
+  Log "MIS CSVs written."
+
   # ---- push (pull-first to avoid the race we hit on weighbridge) ----
   Push-Location $RepoDir
-  git pull --quiet 2>&1 | Out-Null
-  git add coils.csv plates.csv
+  git pull --rebase --quiet 2>&1 | Out-Null
+  git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_meta.json
   $stamp=[DateTime]::Now.ToString('yyyy-MM-dd HH:mm')
   git commit -m "stock refresh $stamp" 2>&1 | Out-Null
   git push --quiet 2>&1 | Out-Null
@@ -150,4 +293,7 @@ try{
 catch{
   Log "ERROR: $($_.Exception.Message)"
   exit 1
+}
+finally{
+  if(Test-Path $LockPath){ Remove-Item $LockPath -Force -ErrorAction SilentlyContinue }
 }
