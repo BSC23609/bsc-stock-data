@@ -8,10 +8,10 @@
   Schedule it the same way as the weighbridge refresh.
 
   Config: reuse C:\scripts\config.ini  (gitignored) with:
-      [db]
+      [database]
       server=10.10.250.11
       database=BSC_FINAL_2707
-      user=sa
+      username=dbadmin
       password=YOURPASS
 #>
 
@@ -26,7 +26,10 @@ function Log($m){ "$([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss'))  $m" | Tee
 $ini=@{}; Get-Content $Cfg | ForEach-Object {
   if($_ -match '^\s*([^=;#\[]+)=(.*)$'){ $ini[$matches[1].Trim()]=$matches[2].Trim() }
 }
-$connStr="Server=$($ini.server);Database=$($ini.database);User Id=$($ini.user);Password=$($ini.password);TrustServerCertificate=True;Connect Timeout=30"
+# accept either  user=  (old header)  or  username=  (weighbridge / discovery config)
+$dbUser = if($ini.username){$ini.username}else{$ini.user}
+if(-not $ini.server -or -not $dbUser){ Log "ERROR: config.ini missing server/username — check $Cfg"; exit 1 }
+$connStr="Server=$($ini.server);Database=$($ini.database);User Id=$dbUser;Password=$($ini.password);TrustServerCertificate=True;Connect Timeout=30"
 
 function Invoke-Sql($sql){
   $conn=New-Object System.Data.SqlClient.SqlConnection $connStr
@@ -34,7 +37,7 @@ function Invoke-Sql($sql){
   $cmd=$conn.CreateCommand(); $cmd.CommandText=$sql; $cmd.CommandTimeout=120
   $da=New-Object System.Data.SqlClient.SqlDataAdapter $cmd
   $dt=New-Object System.Data.DataTable; [void]$da.Fill($dt)
-  $conn.Close(); return $dt
+  $conn.Close(); return ,$dt   # comma stops PowerShell unrolling the table into rows
 }
 
 # ---- brand parsed from item name (mill), not the steel grade UDF ----
@@ -269,9 +272,8 @@ try{
   Log "Querying MIS stock…";    $misStock=Invoke-Sql $misStockSql;                 Log "  $($misStock.Rows.Count) rows"
   Log "Querying MIS sales…";    $misSales=Invoke-SqlDated $misSalesSql $StartDate;  Log "  $($misSales.Rows.Count) rows"
   Log "Querying MIS purchase…"; $misPurch=Invoke-SqlDated $misPurchSql $StartDate;  Log "  $($misPurch.Rows.Count) rows"
-  if($misStock -is [Array]){$misStock=$misStock[-1]}; if($misSales -is [Array]){$misSales=$misSales[-1]}; if($misPurch -is [Array]){$misPurch=$misPurch[-1]}
 
-  if($misStock.Rows.Count -eq 0){ throw "MIS stock query returned 0 rows — not overwriting dashboard data." }
+  if(@($misStock.Rows).Count -eq 0){ throw "MIS stock query returned 0 rows — not overwriting dashboard data." }
   [IO.File]::WriteAllText("$RepoDir\mis_stock.csv",    (ConvertTo-CsvText $misStock), $enc)
   [IO.File]::WriteAllText("$RepoDir\mis_sales.csv",    (ConvertTo-CsvText $misSales), $enc)
   [IO.File]::WriteAllText("$RepoDir\mis_purchase.csv", (ConvertTo-CsvText $misPurch), $enc)
