@@ -1,5 +1,5 @@
-<#
-  setup_task.ps1 — registers the Task Scheduler job for refresh_stock.ps1
+﻿<#
+  setup_task.ps1 - registers the Task Scheduler job for refresh_stock.ps1
   Run ONCE from an elevated PowerShell on the SAP box:
       powershell -ExecutionPolicy Bypass -File C:\scripts\setup_task.ps1
   Creates task "BSC Stock MIS Refresh": every 15 min, hidden, runs whether or
@@ -8,7 +8,7 @@
 $ErrorActionPreference = "Stop"
 $TaskName = "BSC Stock MIS Refresh"
 $Script   = "C:\scripts\refresh_stock.ps1"
-if (-not (Test-Path $Script)) { throw "Not found: $Script — copy refresh_stock.ps1 there first." }
+if (-not (Test-Path $Script)) { throw "Not found: $Script - copy refresh_stock.ps1 there first." }
 
 $action  = New-ScheduledTaskAction -Execute "powershell.exe" `
            -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$Script`""
