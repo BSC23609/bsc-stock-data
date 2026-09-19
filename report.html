@@ -124,7 +124,14 @@ async function build(){
     t.querySelector('tbody').innerHTML=cats.map(c=>`<tr><td>${c}</td>${months.map(i=>`<td class="n">${data[c][i]?f0(data[c][i]):''}</td>`).join('')}<td class="n"><b>${f0(Object.values(data[c]).reduce((a,b)=>a+b,0))}</b></td></tr>`).join('')
       +`<tr class="tot"><td>Grand Total</td>${months.map(i=>`<td class="n">${f0(tot[i]||0)}</td>`).join('')}<td class="n">${f0(Object.values(tot).reduce((a,b)=>a+b,0))}</td></tr>`;
   }
-  monthPivot(msales,'salesTbl'); monthPivot(mpurch,'purchTbl');
+  monthPivot(msales.filter(r=>r.JW!=='Y'),'salesTbl'); monthPivot(mpurch,'purchTbl');
+  // job-work conversion tonnage shown under the sales grand total, not inside it
+  const jw={}; msales.filter(r=>r.JW==='Y'&&fyOf(+r.Yr,+r.Mth)===fy).forEach(r=>{const i=idx(+r.Mth);jw[i]=(jw[i]||0)+num(r.Qty);});
+  if(Object.keys(jw).length){
+    const tb=document.getElementById('salesTbl').querySelector('tbody'), nCols=document.getElementById('salesTbl').querySelectorAll('thead th').length-2;
+    const cells=[...Array(nCols).keys()].map(i=>`<td class="n">${jw[i]?f0(jw[i]):''}</td>`).join('');
+    tb.insertAdjacentHTML('beforeend',`<tr style="color:#666;font-style:italic"><td>Job work (conversion) – not in sales</td>${cells}<td class="n">${f0(Object.values(jw).reduce((a,b)=>a+b,0))}</td></tr>`);
+  }
   // warehouse-wise (excludes 45 job-work and 46 consumables, like the Excel)
   const wd={},wt={},ws=new Set(),wn={};
   mstock.filter(r=>r.WhsCode!=='45'&&r.WhsCode!=='46').forEach(r=>{const q=num(r.OnHand);(wd[r.Category]??={})[r.WhsCode]=(wd[r.Category][r.WhsCode]||0)+q;wt[r.WhsCode]=(wt[r.WhsCode]||0)+q;ws.add(r.WhsCode);wn[r.WhsCode]=r.WhsName;});

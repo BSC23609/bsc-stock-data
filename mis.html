@@ -120,6 +120,7 @@
     <button class="tab" data-tab="sales" onclick="setTab('sales')">Sales</button>
     <button class="tab" data-tab="purchase" onclick="setTab('purchase')">Purchase</button>
     <button class="tab" data-tab="stock" onclick="setTab('stock')">Stock</button>
+    <button class="tab" data-tab="jobwork" onclick="setTab('jobwork')">Job Work</button>
   </div>
 
   <div class="filters">
@@ -138,7 +139,7 @@
       <div class="chartbox"><canvas id="ovChart"></canvas></div>
     </div>
     <div class="grid2">
-      <div class="card"><h3>Bharat sales report <span class="r">MT</span></h3><div class="tblwrap" id="ovSales"></div></div>
+      <div class="card"><h3>Bharat sales report <span class="r">MT · own material</span></h3><div class="tblwrap" id="ovSales"></div></div>
       <div class="card"><h3>Bharat purchase report <span class="r">MT</span></h3><div class="tblwrap" id="ovPurch"></div></div>
     </div>
     <div style="height:14px"></div>
@@ -191,6 +192,22 @@
     </div>
   </div>
 
+  <!-- ================= JOB WORK ================= -->
+  <div class="pane" id="pane-jobwork">
+    <div class="note" style="margin-top:0">Customer-owned material (e.g. Wheels India) processed at G2 and sent back. It moves through <b>warehouse 45</b> and is <b>not</b> part of own-material stock or sales; documents are tagged <i>Job Work</i> by the SAP add-on.</div>
+    <div class="grid2">
+      <div class="card"><h3>Monthly flow <span class="r" id="jwChartSub"></span></h3><div class="chartbox"><canvas id="jwChart"></canvas></div></div>
+      <div class="card"><h3>By customer <span class="r" id="jwPartySub"></span></h3><div class="tblwrap" id="jwParty"></div></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card"><h3>Month-wise <span class="r">MT</span></h3><div class="tblwrap" id="jwMonths"></div></div>
+    <div class="card">
+      <h3>Lying in warehouse 45 <span class="r" id="jwBalSub"></span></h3>
+      <div class="filters" style="margin:0 0 8px"><input type="search" id="jwQ" placeholder="Search item / batch…" oninput="renderJwBalance()"/><select id="jwOwner" onchange="renderJwBalance()"><option value="">All owners</option></select></div>
+      <div class="tblwrap scroll" id="jwBal"></div>
+    </div>
+  </div>
+
   <footer>Data pushed from SAP B1 every 15 min · read-only · <span id="rowcount"></span></footer>
 </div>
 
@@ -228,7 +245,7 @@ const fyLabel=fy=>`${fy}-${String(fy+1).slice(2)}`;
 const EXCL_WHS=new Set(['45','46']);
 const PALETTE=['#1367a6','#e0862c','#1a7f4b','#8e4bb8','#c9364a','#5b6b78','#0fa3a3','#a67c00','#3d5a80','#b5651d'];
 
-let TAB='overview', STOCK=[], SALES=[], PURCH=[], META={}, charts={};
+let TAB='overview', STOCK=[], SALES=[], PURCH=[], JWFLOW=[], JWDOCS=[], JWBAL=[], META={}, charts={};
 let fyList=[], stockSel={}, expanded={sales:new Set(),purchase:new Set()};
 
 // ---------- load ----------
@@ -236,24 +253,28 @@ async function load(){
   document.getElementById('errbox').innerHTML='';
   try{
     const bust='?t='+Date.now();
-    const [s,sa,pu,me]=await Promise.all([
+    const txt=f=>fetch(f+bust).then(r=>r.ok?r.text():'').catch(()=>'');
+    const [s,sa,pu,me,jf,jd,jb]=await Promise.all([
       fetch('mis_stock.csv'+bust).then(r=>{if(!r.ok)throw 0;return r.text();}),
-      fetch('mis_sales.csv'+bust).then(r=>r.ok?r.text():''),
-      fetch('mis_purchase.csv'+bust).then(r=>r.ok?r.text():''),
-      fetch('mis_meta.json'+bust).then(r=>r.ok?r.json():{}).catch(()=>({}))
+      txt('mis_sales.csv'), txt('mis_purchase.csv'),
+      fetch('mis_meta.json'+bust).then(r=>r.ok?r.json():{}).catch(()=>({})),
+      txt('mis_jobwork_flow.csv'), txt('mis_jobwork_docs.csv'), txt('mis_jobwork_balance.csv')
     ]);
     STOCK=parseCSV(s).map(r=>({...r,OnHand:num(r.OnHand),Committed:num(r.Committed),OnOrder:num(r.OnOrder)}));
     const tx=r=>({...r,Yr:+r.Yr,Mth:+r.Mth,Qty:num(r.Qty),Value:num(r.Value),Docs:num(r.Docs),fy:fyOf(+r.Yr,+r.Mth)});
     SALES=sa?parseCSV(sa).map(tx):[];
     PURCH=pu?parseCSV(pu).map(tx):[];
     META=me||{};
+    JWFLOW=jf?parseCSV(jf).map(r=>({...r,Yr:+r.Yr,Mth:+r.Mth,InQty:num(r.InQty),OutQty:num(r.OutQty),fy:fyOf(+r.Yr,+r.Mth)})):[];
+    JWDOCS=jd?parseCSV(jd).map(tx).map(r=>({...r,OpenQty:num(r.OpenQty)})):[];
+    JWBAL=jb?parseCSV(jb).map(r=>({...r,Quantity:num(r.Quantity),AgeDays:num(r.AgeDays)})):[];
     // as-of + staleness (from the refresh job's own stamp, not the browser clock)
     const gen=META.generated?new Date(META.generated):null;
     document.getElementById('asof').textContent='as of '+(gen||new Date()).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
     document.getElementById('stale').style.display=(gen&&(Date.now()-gen.getTime())>3*3600e3)?'':'none';
     document.getElementById('samplenote').style.display=META.sample?'':'none';
     buildControls(); render();
-    document.getElementById('rowcount').textContent=`${STOCK.length} stock rows · ${SALES.length} sales rows · ${PURCH.length} purchase rows`;
+    document.getElementById('rowcount').textContent=`${STOCK.length} stock rows · ${SALES.length} sales rows · ${PURCH.length} purchase rows · ${JWDOCS.length} job-work rows`;
   }catch(e){
     document.getElementById('errbox').innerHTML='<div class="err">Couldn\'t load MIS data. The refresh job may not have pushed yet — try again shortly.</div>';
   }
@@ -274,10 +295,13 @@ function buildControls(){
   const fill=(id,vals)=>{const el=document.getElementById(id);const p=el.value;
     el.innerHTML=el.options[0].outerHTML+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');el.value=vals.includes(p)?p:'';};
   fill('salesCat',[...new Set(SALES.map(r=>r.Category))].sort());
+  fill('jwOwner',[...new Set(JWBAL.map(r=>r.Owner||r.OwnerCode).filter(Boolean))].sort());
   fill('purchaseCat',[...new Set(PURCH.map(r=>r.Category))].sort());
   fill('stockGrp',[...new Set(STOCK.map(r=>r.ItemGroup))].sort());
 }
 
+const OWN=()=>SALES.filter(r=>r.JW!=='Y');
+const JWS=()=>SALES.filter(r=>r.JW==='Y');
 const selFy=()=>+document.getElementById('fy').value;
 const selMon=()=>{const v=document.getElementById('mon').value;return v===''?null:+v;};
 const allWhs=()=>document.getElementById('allWhs').checked;
@@ -302,9 +326,9 @@ function monthPivot(rows,fy){
   });
   return {cats:Object.keys(data).sort(),data,tot,latest};
 }
-function pivotTable(p,curIdx){
+function pivotTable(p,curIdx,extra){
   if(!p.cats.length) return '<div class="empty">No data for this FY.</div>';
-  const months=MONTHS.map((m,i)=>i).filter(i=>i<=p.latest);
+  const months=MONTHS.map((m,i)=>i).filter(i=>i<=Math.max(p.latest,extra?extra.latest:-1));
   const th=months.map(i=>`<th class="num${i===curIdx?' cur':''}">${MONTHS[i]}</th>`).join('');
   const rows=p.cats.map(c=>{
     const cells=months.map(i=>`<td class="num${i===curIdx?' cur':''}">${p.data[c][i]?f0(p.data[c][i]):''}</td>`).join('');
@@ -313,8 +337,14 @@ function pivotTable(p,curIdx){
   }).join('');
   const tcells=months.map(i=>`<td class="num${i===curIdx?' cur':''}">${f0(p.tot[i]||0)}</td>`).join('');
   const gt=Object.values(p.tot).reduce((a,b)=>a+b,0);
+  let xtra='';
+  if(extra&&extra.cats.length){
+    const c=extra.cats[0], xg=Object.values(extra.data[c]).reduce((a,b)=>a+b,0);
+    xtra=`<tr style="color:var(--gray)"><td><i>${esc(c)}</i> <span class="muted">not in sales</span></td>${months.map(i=>`<td class="num${i===curIdx?' cur':''}">${extra.data[c][i]?f0(extra.data[c][i]):''}</td>`).join('')}<td class="num">${f0(xg)}</td></tr>
+      <tr style="color:var(--gray)"><td><i>Total incl. job work</i></td>${months.map(i=>`<td class="num${i===curIdx?' cur':''}">${f0((p.tot[i]||0)+(extra.data[c][i]||0))}</td>`).join('')}<td class="num">${f0(gt+xg)}</td></tr>`;
+  }
   return `<table class="pivot"><thead><tr><th>Category</th>${th}<th class="num">Grand total</th></tr></thead>
-    <tbody>${rows}<tr class="tot"><td>Grand Total</td>${tcells}<td class="num">${f0(gt)}</td></tr></tbody></table>`;
+    <tbody>${rows}<tr class="tot"><td>Grand Total</td>${tcells}<td class="num">${f0(gt)}</td></tr>${xtra}</tbody></table>`;
 }
 function whsPivot(rows){
   const data={},whs=new Set(),tot={};
@@ -335,7 +365,10 @@ function render(){
   const st=stockRows();
   const totStock=st.reduce((a,r)=>a+r.OnHand,0);
   const coil38=STOCK.filter(r=>r.WhsCode==='38').reduce((a,r)=>a+r.OnHand,0);
-  const sM=sum(SALES,inM), sP=sum(SALES,prevM), sY=sum(SALES,inFy), sYV=sumV(SALES,inFy);
+  const own=OWN(), jws=JWS();
+  const sM=sum(own,inM), sP=sum(own,prevM), sY=sum(own,inFy), sYV=sumV(own,inFy);
+  const jwDlv=JWDOCS.filter(r=>r.Kind==='Delivery');
+  const jM=sum(jwDlv,inM), jY=sum(jwDlv,inFy);
   const pM=sum(PURCH,inM), pP=sum(PURCH,prevM), pY=sum(PURCH,inFy), pYV=sumV(PURCH,inFy);
   const delta=(a,b)=>b?`<span class="${a>=b?'up':'dn'}">${a>=b?'▲':'▼'} ${f0(Math.abs(a-b))} vs prev</span>`:'';
   const ml=MONTHS[kIdx]+' '+(kIdx<9?fy:fy+1);
@@ -343,20 +376,23 @@ function render(){
     <div class="kpi"><div class="lab">Total stock</div><div class="val">${f0(totStock)}<small> MT</small></div><div class="sub">${allWhs()?'all warehouses':'excl. 45 / 46'}</div></div>
     <div class="kpi"><div class="lab">HR coil stock · whs 38</div><div class="val">${f0(coil38)}<small> MT</small></div><div class="sub">${STOCK.filter(r=>r.WhsCode==='38').length} items</div></div>
     <div class="kpi"><div class="lab">Sales · ${ml}</div><div class="val">${f0(sM)}<small> MT</small></div><div class="sub">${delta(sM,sP)}</div></div>
-    <div class="kpi"><div class="lab">Sales · FY ${fyLabel(fy)}</div><div class="val">${f0(sY)}<small> MT</small></div><div class="sub">${sYV?fcr(sYV):''}</div></div>
+    <div class="kpi"><div class="lab">Sales · FY ${fyLabel(fy)}</div><div class="val">${f0(sY)}<small> MT</small></div><div class="sub">${sYV?fcr(sYV):''} · own material</div></div>
+    <div class="kpi"><div class="lab">Dispatch · ${ml}</div><div class="val">${f0(sM+jM)}<small> MT</small></div><div class="sub">sales ${f0(sM)} + job work ${f0(jM)}</div></div>
     <div class="kpi"><div class="lab">Purchase · ${ml}</div><div class="val">${f0(pM)}<small> MT</small></div><div class="sub">${delta(pM,pP)}</div></div>
     <div class="kpi"><div class="lab">Purchase · FY ${fyLabel(fy)}</div><div class="val">${f0(pY)}<small> MT</small></div><div class="sub">${pYV?fcr(pYV):''}</div></div>`;
   document.getElementById('fcount').textContent=META.dataFrom?`data from ${META.dataFrom}`:'';
 
   if(TAB==='overview') renderOverview(fy,curIdx);
   else if(TAB==='sales'||TAB==='purchase') renderTx(TAB);
+  else if(TAB==='jobwork') renderJobwork();
   else renderStock();
 }
 
 // ---------- OVERVIEW ----------
 function renderOverview(fy,curIdx){
-  const sp=monthPivot(SALES,fy), pp=monthPivot(PURCH,fy);
-  document.getElementById('ovSales').innerHTML=pivotTable(sp,curIdx);
+  const sp=monthPivot(OWN(),fy), pp=monthPivot(PURCH,fy);
+  const jp=monthPivot(JWS().map(r=>({...r,Category:'Job work (conversion)'})),fy);
+  document.getElementById('ovSales').innerHTML=pivotTable(sp,curIdx,jp);
   document.getElementById('ovPurch').innerHTML=pivotTable(pp,curIdx);
   // chart
   const last=Math.max(sp.latest,pp.latest,0);
@@ -391,7 +427,7 @@ function renderOverviewCoils(){
 
 // ---------- SALES / PURCHASE ----------
 function renderTx(kind){
-  const rows=(kind==='sales'?SALES:PURCH), fy=selFy(), mon=selMon();
+  const rows=(kind==='sales'?OWN():PURCH), fy=selFy(), mon=selMon();
   const q=(document.getElementById(kind+'Q').value||'').toLowerCase();
   const cat=document.getElementById(kind+'Cat').value;
   const base=rows.filter(r=>r.fy===fy&&(!cat||r.Category===cat)&&(mon===null||fyIdx(r.Mth)===mon));
@@ -463,6 +499,56 @@ function renderStockItems(){
   document.getElementById('stockItems').innerHTML=rows.length?`<table><thead><tr><th>Item</th><th>Group</th><th>Whs</th><th>Grade</th><th class="num">Thk</th><th class="num">Width</th><th class="num">On hand</th><th class="num">Committed</th><th class="num">On order</th><th class="num">Available</th></tr></thead><tbody>
     ${rows.slice(0,400).map(r=>`<tr><td><b>${esc(r.ItemName)}</b><div class="muted">${esc(r.ItemCode)}</div></td><td><span class="tag">${esc(r.ItemGroup)}</span></td><td class="num">${r.WhsCode}</td><td class="muted">${esc(r.Grade)}</td><td class="num">${r.Thickness?num(r.Thickness):''}</td><td class="num">${r.Width?num(r.Width):''}</td><td class="num"><b>${f3(r.OnHand)}</b></td><td class="num">${f3(r.Committed)}</td><td class="num">${f3(r.OnOrder)}</td><td class="num">${f3(r.OnHand-r.Committed)}</td></tr>`).join('')}
     <tr class="tot"><td colspan="6">Total${rows.length>400?' (showing first 400)':''}</td><td class="num">${f3(tot)}</td><td class="num">${f3(com)}</td><td class="num">${f3(ord)}</td><td class="num">${f3(tot-com)}</td></tr></tbody></table>`:'<div class="empty">No items match.</div>';
+}
+
+// ---------- JOB WORK ----------
+function renderJobwork(){
+  const fy=selFy(), mon=selMon();
+  const inFy=r=>r.fy===fy;
+  const flow=JWFLOW.filter(inFy), docs=JWDOCS.filter(inFy);
+  const latest=Math.max(-1,...flow.map(r=>fyIdx(r.Mth)),...docs.map(r=>fyIdx(r.Mth)));
+  const months=MONTHS.map((_,i)=>i).filter(i=>i<=latest);
+  const by=(rows,pred,fld)=>months.map(i=>rows.filter(r=>fyIdx(r.Mth)===i&&pred(r)).reduce((a,r)=>a+r[fld],0));
+  const recv=by(flow,r=>r.Kind.startsWith('Received'),'InQty');
+  const proc=by(flow,r=>r.Kind==='Processed (GR)','InQty');
+  const disp=by(docs,r=>r.Kind==='Delivery','Qty');
+  const inv =by(docs,r=>r.Kind==='Invoice','Qty');
+  const invV=by(docs,r=>r.Kind==='Invoice','Value');
+  document.getElementById('jwChartSub').textContent='FY '+fyLabel(fy)+' · MT';
+  drawChart('jwChart',{type:'bar',data:{labels:months.map(i=>MONTHS[i]),datasets:[
+    {label:'Received',data:recv.map(Math.round),backgroundColor:'#5b6b78',borderRadius:4},
+    {label:'Processed',data:proc.map(Math.round),backgroundColor:'#e0862c',borderRadius:4},
+    {label:'Dispatched back',data:disp.map(Math.round),backgroundColor:'#1367a6',borderRadius:4},
+    {label:'Invoiced',data:inv.map(Math.round),backgroundColor:'#1a7f4b',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:11}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{beginAtZero:true,grid:{color:'#f0f3f5'},ticks:{font:{size:10}}}}}});
+  // month table
+  const sumA=a=>a.reduce((x,y)=>x+y,0);
+  const row=(lab,a,f=f0)=>`<tr><td>${lab}</td>${a.map(v=>`<td class="num">${v?f(v):''}</td>`).join('')}<td class="num"><b>${f(sumA(a))}</b></td></tr>`;
+  document.getElementById('jwMonths').innerHTML=months.length?`<table class="pivot"><thead><tr><th></th>${months.map(i=>`<th class="num">${MONTHS[i]}</th>`).join('')}<th class="num">FY total</th></tr></thead><tbody>
+    ${row('Received into whs 45',recv)}${row('Processed (cut-to-length / slit)',proc)}${row('Dispatched back',disp)}${row('Invoiced (conversion)',inv)}
+    ${row('Conversion revenue',invV,fcr)}
+    <tr class="tot"><td>Delivered, not yet invoiced</td>${months.map((_,k)=>`<td class="num">${disp[k]-inv[k]>0.5?f0(disp[k]-inv[k]):''}</td>`).join('')}<td class="num">${f0(Math.max(0,sumA(disp)-sumA(inv)))}</td></tr>
+    </tbody></table>`:'<div class="empty">No job-work activity this FY.</div>';
+  // by customer
+  const pm={};
+  docs.filter(r=>mon===null||fyIdx(r.Mth)===mon).forEach(r=>{const o=pm[r.CardName]??={d:0,i:0,v:0,o:0,p:new Set()};if(r.Kind==='Delivery'){o.d+=r.Qty;o.o+=r.OpenQty;}else{o.i+=r.Qty;o.v+=r.Value;}if(r.ProcessType)o.p.add(r.ProcessType);});
+  const parties=Object.entries(pm).sort((a,b)=>b[1].d-a[1].d);
+  document.getElementById('jwPartySub').textContent=mon===null?'FY to date':MONTHS[mon];
+  document.getElementById('jwParty').innerHTML=parties.length?`<table><thead><tr><th>Customer</th><th>Process</th><th class="num">Dispatched</th><th class="num">Invoiced</th><th class="num">Open</th><th class="num">Revenue</th></tr></thead><tbody>
+    ${parties.map(([n,o])=>`<tr><td>${esc(n)}</td><td>${[...o.p].map(p=>`<span class="tag">${esc(p)}</span>`).join(' ')}</td><td class="num">${f0(o.d)}</td><td class="num">${f0(o.i)}</td><td class="num${o.o>0?' dn':''}">${o.o?f0(o.o):''}</td><td class="num">${o.v?fcr(o.v):''}</td></tr>`).join('')}
+    </tbody></table>`:'<div class="empty">No job-work documents.</div>';
+  renderJwBalance();
+}
+function renderJwBalance(){
+  const q=(document.getElementById('jwQ').value||'').toLowerCase(), own=document.getElementById('jwOwner').value;
+  const rows=JWBAL.filter(r=>(!own||(r.Owner||r.OwnerCode)===own)&&(!q||r.ItemName.toLowerCase().includes(q)||r.BatchNum.toLowerCase().includes(q))).sort((a,b)=>b.Quantity-a.Quantity);
+  const tot=rows.reduce((a,r)=>a+r.Quantity,0);
+  const byItem={}; rows.forEach(r=>{const o=byItem[r.ItemName]??={q:0,n:0,age:0};o.q+=r.Quantity;o.n++;o.age=Math.max(o.age,r.AgeDays);});
+  document.getElementById('jwBalSub').textContent=`${rows.length} batches · ${Object.keys(byItem).length} items · ${f1(tot)} MT`;
+  document.getElementById('jwBal').innerHTML=rows.length?`<table><thead><tr><th>Item</th><th class="num">Batches</th><th class="num">MT</th><th class="num">Oldest (days)</th></tr></thead><tbody>
+    ${Object.entries(byItem).sort((a,b)=>b[1].q-a[1].q).map(([n,o])=>`<tr><td>${esc(n)}</td><td class="num">${o.n}</td><td class="num"><b>${f3(o.q)}</b></td><td class="num${o.age>60?' dn':''}">${o.age||''}</td></tr>`).join('')}
+    <tr class="tot"><td>Total</td><td class="num">${rows.length}</td><td class="num">${f3(tot)}</td><td></td></tr></tbody></table>`:'<div class="empty">Nothing lying in warehouse 45.</div>';
 }
 
 // ---------- chart util ----------

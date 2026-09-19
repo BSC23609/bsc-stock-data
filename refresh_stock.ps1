@@ -139,10 +139,12 @@ ORDER BY T0.WhsCode, T0.OnHand DESC
 # Sales: A/R invoices, same filters as the "Sales Report" query. Rolling from the
 # start of the previous financial year so the page can show FY-on-FY.
 $misSalesSql = @"
-SELECT Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth,
+SELECT Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth, JW, ProcessType,
        SUM(Qty) AS Qty, SUM(Value) AS Value, COUNT(DISTINCT DocEntry) AS Docs
 FROM (
   SELECT
+    CASE WHEN ISNULL(T0.U_VSPJWTX,'')='Job Work' THEN 'Y' ELSE 'N' END AS JW,
+    ISNULL(T0.U_PROCESSTYPE,'') AS ProcessType,
     CASE
       WHEN T9.ItmsGrpNam IN ('SAIL H.R.PLATE','SAIL HR SHEET','SAIL HR COIL','HR Coil') THEN '1. SAIL HR'
       WHEN T9.ItmsGrpNam = 'SAIL STRUCTURAL' THEN '2. SAIL STRUCTURAL'
@@ -162,7 +164,7 @@ FROM (
     AND T1.Quantity > 0 AND T0.DocDate >= @StartDate
 ) X
 WHERE Category IS NOT NULL
-GROUP BY Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth
+GROUP BY Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth, JW, ProcessType
 ORDER BY Yr, Mth, Category
 "@
 
@@ -192,6 +194,47 @@ FROM (
 ) X
 GROUP BY Category, ItemGroup, ItemCode, ItemName, CardName, Yr, Mth
 ORDER BY Yr, Mth, Category
+"@
+
+# ---- Job work (customer-owned material processed at G2 and returned) ----
+# Flow through warehouse 45 by transaction type, party and month.
+$misJwFlowSql = @"
+SELECT YEAR(M.DocDate) AS Yr, MONTH(M.DocDate) AS Mth,
+  CASE M.TransType WHEN 20 THEN 'Received (GRPO)' WHEN 67 THEN 'Received (Transfer)' WHEN 59 THEN 'Processed (GR)'
+                   WHEN 60 THEN 'Issued to process (GI)' WHEN 15 THEN 'Dispatched (Delivery)' WHEN 14 THEN 'Returned (Credit)'
+                   ELSE CAST(M.TransType AS NVARCHAR(10)) END AS Kind,
+  ISNULL(M.CardName,'') AS CardName, SUM(M.InQty) AS InQty, SUM(M.OutQty) AS OutQty, COUNT(*) AS Lines
+FROM OINM M
+WHERE M.Warehouse='45' AND M.DocDate >= @StartDate
+GROUP BY YEAR(M.DocDate), MONTH(M.DocDate), M.TransType, M.CardName
+ORDER BY Yr, Mth, Kind
+"@
+
+# Job-work deliveries and invoices (tagged by the VSP add-on), plus delivered-not-invoiced.
+$misJwDocsSql = @"
+SELECT 'Delivery' AS Kind, H.CardName, ISNULL(H.U_PROCESSTYPE,'') AS ProcessType, YEAR(H.DocDate) Yr, MONTH(H.DocDate) Mth,
+       SUM(L.Quantity) AS Qty, SUM(L.LineTotal) AS Value, COUNT(DISTINCT H.DocEntry) AS Docs,
+       SUM(CASE WHEN L.TrgetEntry IS NULL AND L.LineStatus='O' THEN L.Quantity ELSE 0 END) AS OpenQty
+FROM ODLN H JOIN DLN1 L ON L.DocEntry=H.DocEntry
+WHERE H.DocDate >= @StartDate AND H.CANCELED='N' AND ISNULL(H.U_VSPJWTX,'')='Job Work'
+GROUP BY H.CardName, H.U_PROCESSTYPE, YEAR(H.DocDate), MONTH(H.DocDate)
+UNION ALL
+SELECT 'Invoice', H.CardName, ISNULL(H.U_PROCESSTYPE,''), YEAR(H.DocDate), MONTH(H.DocDate),
+       SUM(L.Quantity), SUM(L.LineTotal), COUNT(DISTINCT H.DocEntry), 0
+FROM OINV H JOIN INV1 L ON L.DocEntry=H.DocEntry
+WHERE H.DocDate >= @StartDate AND H.CANCELED='N' AND H.GSTTranTyp<>'GD' AND ISNULL(H.U_VSPJWTX,'')='Job Work'
+GROUP BY H.CardName, H.U_PROCESSTYPE, YEAR(H.DocDate), MONTH(H.DocDate)
+ORDER BY Yr, Mth, Kind
+"@
+
+# What is lying in the job-work warehouse right now, by batch and owner.
+$misJwBalanceSql = @"
+SELECT B.ItemCode, I.ItemName, B.BatchNum, ISNULL(B.U_VendCode,'') AS OwnerCode, ISNULL(C.CardName,'') AS Owner,
+       B.Quantity, B.InDate, DATEDIFF(day, B.InDate, GETDATE()) AS AgeDays
+FROM OIBT B JOIN OITM I ON I.ItemCode=B.ItemCode
+LEFT JOIN OCRD C ON C.CardCode=B.U_VendCode
+WHERE B.WhsCode='45' AND B.Quantity<>0
+ORDER BY B.Quantity DESC
 "@
 
 function Invoke-SqlDated($sql, [string]$startDate){
@@ -272,13 +315,18 @@ try{
   Log "Querying MIS stock…";    $misStock=Invoke-Sql $misStockSql;                 Log "  $($misStock.Rows.Count) rows"
   Log "Querying MIS sales…";    $misSales=Invoke-SqlDated $misSalesSql $StartDate;  Log "  $($misSales.Rows.Count) rows"
   Log "Querying MIS purchase…"; $misPurch=Invoke-SqlDated $misPurchSql $StartDate;  Log "  $($misPurch.Rows.Count) rows"
+  Log "Querying job work…";     $jwFlow=Invoke-SqlDated $misJwFlowSql $StartDate;    $jwDocs=Invoke-SqlDated $misJwDocsSql $StartDate;  $jwBal=Invoke-Sql $misJwBalanceSql
+  Log "  flow $($jwFlow.Rows.Count) · docs $($jwDocs.Rows.Count) · balance $($jwBal.Rows.Count) rows"
 
   if(@($misStock.Rows).Count -eq 0){ throw "MIS stock query returned 0 rows — not overwriting dashboard data." }
   [IO.File]::WriteAllText("$RepoDir\mis_stock.csv",    (ConvertTo-CsvText $misStock), $enc)
   [IO.File]::WriteAllText("$RepoDir\mis_sales.csv",    (ConvertTo-CsvText $misSales), $enc)
   [IO.File]::WriteAllText("$RepoDir\mis_purchase.csv", (ConvertTo-CsvText $misPurch), $enc)
+  [IO.File]::WriteAllText("$RepoDir\mis_jobwork_flow.csv",    (ConvertTo-CsvText $jwFlow), $enc)
+  [IO.File]::WriteAllText("$RepoDir\mis_jobwork_docs.csv",    (ConvertTo-CsvText $jwDocs), $enc)
+  [IO.File]::WriteAllText("$RepoDir\mis_jobwork_balance.csv", (ConvertTo-CsvText $jwBal), $enc)
   $meta=@{ generated=$now.ToString('yyyy-MM-ddTHH:mm:ss'); fyStart="$fy-04-01"; dataFrom=$StartDate;
-           rows=@{ coils=$coils.Rows.Count; plates=$plates.Rows.Count; stock=$misStock.Rows.Count; sales=$misSales.Rows.Count; purchase=$misPurch.Rows.Count } }
+           rows=@{ coils=$coils.Rows.Count; plates=$plates.Rows.Count; stock=$misStock.Rows.Count; sales=$misSales.Rows.Count; purchase=$misPurch.Rows.Count; jobwork=$jwDocs.Rows.Count } }
   [IO.File]::WriteAllText("$RepoDir\mis_meta.json", ($meta | ConvertTo-Json -Compress), $enc)
   Log "MIS CSVs written."
 
@@ -288,7 +336,7 @@ try{
   # Judge git by exit code only.
   $prevEap=$ErrorActionPreference; $ErrorActionPreference='Continue'
   try{
-    git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_meta.json 2>&1 | Out-Null
+    git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_jobwork_flow.csv mis_jobwork_docs.csv mis_jobwork_balance.csv mis_meta.json 2>&1 | Out-Null
     $stamp=[DateTime]::Now.ToString('yyyy-MM-dd HH:mm')
     git commit -m "stock refresh $stamp" 2>&1 | Out-Null          # no-op if nothing changed
     # commit first, THEN rebase: -X theirs = keep our freshly generated CSVs on conflict,

@@ -15,6 +15,9 @@ Same model as the weighbridge dashboard: PowerShell pushes CSVs from SAP, GitHub
 | `mis_stock.csv` | Every item × warehouse with OnHand > 0, with the pivot category (mirrors SAP query "Warehouse Stock Report") |
 | `mis_sales.csv` | A/R invoice lines from start of previous FY, grouped category × group × item × customer × month (mirrors "Sales Report") |
 | `mis_purchase.csv` | A/P invoice lines, same shape, categorised by line `U_MOU` (mirrors "Purchase") |
+| `mis_jobwork_flow.csv` | Warehouse 45 movements by month / type / party (received, processed, dispatched) |
+| `mis_jobwork_docs.csv` | Deliveries and invoices tagged *Job Work* by the VSP add-on, with delivered-not-invoiced qty |
+| `mis_jobwork_balance.csv` | Batches lying in warehouse 45 with owner and age |
 | `mis_meta.json` | Refresh timestamp + row counts; the pages show "STALE" if it is > 3 h old |
 
 Sample MIS CSVs are committed from the discovery run (group-level only); the first scheduled refresh replaces them with live item-level data.
@@ -34,6 +37,8 @@ Sample MIS CSVs are committed from the discovery run (group-level only); the fir
 - Stock categories, warehouse exclusions (45 job-work, 46 consumables) and the sales / purchase filters
   (`Canceled='N'`, `GSTTranTyp<>'GD'`, `Quantity>0`, `BaseType<>13/18`) are copied from the SAP saved queries that feed the Excel pivot.
 - Sales category comes from the item group; purchase category comes from the line-level `U_MOU` UDF (so NMDC / TMT-EQR show as their own rows, as in Excel).
+- Job work (customer-owned coils, e.g. Wheels India): items `JW…` in group "HR Coil", warehouse 45, documents tagged `U_VSPJWTX='Job Work'`.
+  `mis_sales.csv` carries a `JW` flag; the pages show own-material sales in the category rows and job-work conversion tonnage as a separate line.
 - Financial year = 1 April; data is pulled from the start of the previous FY so the FY selector can compare years.
 
 ## Daily WhatsApp  (next step — separate Render service)
