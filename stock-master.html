@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stock Master — Bharat Steel (Chennai)</title>
+<link rel="icon" href="BSC.png"/>
+<style>
+  :root{
+    --blue:#1367a6;--blue-dark:#0e4d7d;--ink:#14202b;--gray:#5b6b78;
+    --line:#e3e8ec;--bg:#f5f7f9;--amber:#c77a10;--good:#1a7f4b;--red:#b3261e;
+    --yellow:#fff1c2;--head:#e6eef5;--mono:"SFMono-Regular",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.4}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 16px}
+  header{background:linear-gradient(180deg,var(--blue),var(--blue-dark));color:#fff}
+  .hbar{display:flex;align-items:center;gap:14px;padding:14px 16px;max-width:1280px;margin:0 auto;flex-wrap:wrap}
+  .hbar img{height:34px;background:#fff;padding:4px 7px;border-radius:6px}
+  .htitle{font-weight:700;font-size:16px;line-height:1.15}
+  .hsub{font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.14em}
+  .hmeta{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;flex-wrap:wrap}
+  .hdate{font-family:var(--mono);opacity:.9}
+  .stale{background:#fff3cd;color:#7a5200;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:700}
+  .hbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;text-decoration:none;padding:6px 12px;border-radius:7px;font-weight:600;font-size:12px;cursor:pointer;font-family:inherit}
+  .hbtn:hover{background:rgba(255,255,255,.25)}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:18px 0 0;overflow-x:auto}
+  .tab{padding:9px 16px;font-weight:600;font-size:13px;color:var(--gray);cursor:pointer;white-space:nowrap;border:none;border-bottom:2px solid transparent;background:none;font-family:inherit}
+  .tab.on{color:var(--blue);border-bottom-color:var(--blue)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:16px 0}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer}
+  .kpi.on{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+  .kpi .lab{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--gray);font-weight:700}
+  .kpi .val{font-family:var(--mono);font-size:22px;font-weight:700;margin-top:3px;white-space:nowrap}
+  .kpi .val small{font-size:11px;color:var(--gray);font-weight:600}
+  .kpi .sub{font-size:11px;color:var(--gray);margin-top:2px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 14px}
+  .filters select,.filters input{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;background:#fff;color:var(--ink);font-family:inherit}
+  .filters input[type=search]{min-width:200px;flex:1}
+  .filters label{font-size:12px;color:var(--gray);display:flex;align-items:center;gap:5px}
+  .clr{color:var(--blue);font-weight:600;font-size:12px;cursor:pointer;padding:6px 4px}
+  .fcount{font-size:12px;color:var(--gray);margin-left:auto;font-family:var(--mono)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px;min-width:0}
+  .card h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--gray);display:flex;align-items:center;gap:8px}
+  .card h3 .r{margin-left:auto;font-family:var(--mono);text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink);font-size:11px}
+  .tblwrap{overflow-x:auto}
+  .scroll{max-height:560px;overflow:auto}
+  .scroll thead th{position:sticky;top:0;background:#fff;z-index:1}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);font-weight:700;padding:8px 10px;border-bottom:2px solid var(--line);white-space:nowrap}
+  th.num,td.num{text-align:right;font-family:var(--mono);white-space:nowrap}
+  td{padding:7px 10px;border-bottom:1px solid var(--line)}
+  tbody tr:hover{background:#f8fafb}
+  tr.tot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:none;font-family:var(--mono);background:var(--head)}
+  tr.tot td:first-child{font-family:inherit}
+  tr.grp>td{background:#fbfcfd;font-weight:700;cursor:pointer}
+  tr.grp>td:first-child{}
+  tr.itm>td:first-child{padding-left:28px}
+  .tw{display:inline-block;width:14px;color:var(--blue);font-family:var(--mono);font-size:11px}
+  td.cell{cursor:pointer}
+  td.cell:hover{background:#e8f1fa}
+  td.cell.sel{background:#dbe9f7;font-weight:700}
+  .pivot td.num.hot{background:#eef6ef}
+  .tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:#eef3f7;color:var(--blue-dark);white-space:nowrap}
+  .bar{display:inline-block;height:4px;border-radius:3px;background:var(--blue);vertical-align:middle}
+  .empty{text-align:center;color:var(--gray);padding:30px 0;font-size:13px}
+  .err{background:#fdecea;border:1px solid #f5c6c0;color:#a3271b;padding:12px 14px;border-radius:9px;margin:14px 0;font-size:13px}
+  .muted{color:var(--gray);font-size:11px}
+  .pane{display:none}.pane.on{display:block}
+  footer{color:var(--gray);font-size:11px;text-align:center;padding:24px 0}
+  @media print{header .hbtn,.tabs,.filters{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <img src="BSC.png" alt="BSC" onerror="this.style.display='none'"/>
+    <div>
+      <div class="htitle">Stock Master</div>
+      <div class="hsub">Bharat Steel (Chennai) Pvt Ltd · live from SAP</div>
+    </div>
+    <div class="hmeta">
+      <span class="stale" id="stale" style="display:none">STALE</span>
+      <span class="hdate" id="asof">—</span>
+      <a class="hbtn" href="mis.html">Sales · Purchase MIS →</a>
+      <a class="hbtn" href="index.html">Coil / plate detail →</a>
+      <button class="hbtn" onclick="load()">↻ Refresh</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="errbox"></div>
+
+  <!-- location KPI strip (click to filter) -->
+  <div class="kpis" id="locKpis"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="summary" onclick="setTab('summary')">Summary</button>
+    <button class="tab" data-tab="pivot" onclick="setTab('pivot')">Thickness × Width</button>
+    <button class="tab" data-tab="items" onclick="setTab('items')">Item list</button>
+    <button class="tab" data-tab="coils" onclick="setTab('coils')">Coil batches</button>
+  </div>
+
+  <div class="filters">
+    <label>Location
+      <select id="loc" onchange="render()">
+        <option value="">All Chennai + Salem</option>
+        <option value="chennai">Chennai (11 · 38)</option>
+        <option value="salem">Salem (22 · 07)</option>
+        <option value="__each">— by warehouse —</option>
+      </select>
+    </label>
+    <label>Brand <select id="brand" onchange="render()"><option value="">All brands</option></select></label>
+    <label>Grade <select id="grade" onchange="render()"><option value="">All grades</option></select></label>
+    <span class="clr" onclick="resetFilters()">Clear</span>
+    <span class="fcount" id="fcount"></span>
+  </div>
+
+  <!-- ===== SUMMARY ===== -->
+  <div class="pane on" id="pane-summary">
+    <div class="card"><h3>Stock by location <span class="r">MT on hand</span></h3><div class="tblwrap" id="locTable"></div></div>
+    <div class="card"><h3>By brand & grade <span class="r">MT · on hand / booked / incoming</span></h3><div class="tblwrap" id="brandTable"></div></div>
+  </div>
+
+  <!-- ===== PIVOT ===== -->
+  <div class="pane" id="pane-pivot">
+    <div class="card">
+      <h3>Thickness × Width <span class="r" id="pivotSub"></span></h3>
+      <div class="filters" style="margin:0 0 8px">
+        <label>Measure
+          <select id="measure" onchange="renderPivot()">
+            <option value="OnHand">On hand</option>
+            <option value="Committed">Booked (committed)</option>
+            <option value="OnOrder">Incoming (on order)</option>
+            <option value="Available">Available (hand − booked)</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="pivotAllW" onchange="renderPivot()"/> all widths (incl. slit)</label>
+        <span class="muted">Click a cell to see the items behind it.</span>
+      </div>
+      <div class="tblwrap" id="pivotTable"></div>
+    </div>
+    <div class="card" id="pivotDrillCard" style="display:none">
+      <h3>Items in <span class="r" id="pivotDrillSub"></span></h3>
+      <div class="tblwrap" id="pivotDrill"></div>
+    </div>
+  </div>
+
+  <!-- ===== ITEMS ===== -->
+  <div class="pane" id="pane-items">
+    <div class="card">
+      <h3>All items <span class="r" id="itemsSub"></span></h3>
+      <div class="filters" style="margin:0 0 8px">
+        <input type="search" id="itemQ" placeholder="Search item / code / grade…" oninput="renderItems()"/>
+        <label><input type="checkbox" id="hideZero" checked onchange="renderItems()"/> only in-stock</label>
+        <button class="hbtn" style="color:var(--blue);background:var(--blue)/5;border-color:var(--blue)" onclick="exportItems()">Download CSV</button>
+      </div>
+      <div class="tblwrap scroll" id="itemsTable"></div>
+    </div>
+  </div>
+
+  <!-- ===== COILS ===== -->
+  <div class="pane" id="pane-coils">
+    <div class="card">
+      <h3>Coil batches · warehouse 38 <span class="r" id="coilsSub"></span></h3>
+      <div class="filters" style="margin:0 0 8px">
+        <input type="search" id="coilQ" placeholder="Search item / batch / coil no / bin…" oninput="renderCoils()"/>
+        <label>Age <select id="coilAge" onchange="renderCoils()"><option value="">Any</option><option value="30">30+ days</option><option value="60">60+ days</option><option value="90">90+ days</option></select></label>
+        <label><input type="checkbox" id="coilGroup" onchange="renderCoils()"/> group by item</label>
+      </div>
+      <div class="tblwrap scroll" id="coilsTable"></div>
+    </div>
+  </div>
+
+  <footer>Live from SAP B1 · pushed every 15 min · <span id="rowcount"></span></footer>
+</div>
+
+<script>
+function parseCSV(text){
+  if(text.charCodeAt(0)===0xFEFF)text=text.slice(1);
+  const rows=[];let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else{if(c==='"')q=true;else if(c===',')row.push(cur),cur="";else if(c==='\n')row.push(cur),rows.push(row),row=[],cur="";else if(c==='\r'){}else cur+=c;}}
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  if(!rows.length)return[];const head=rows.shift().map(h=>h.trim());
+  return rows.filter(r=>r.length>1).map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]??"").trim());return o;});
+}
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;};
+const f0=n=>n.toLocaleString('en-IN',{maximumFractionDigits:0});
+const f1=n=>n.toLocaleString('en-IN',{minimumFractionDigits:1,maximumFractionDigits:1});
+const f3=n=>n.toLocaleString('en-IN',{minimumFractionDigits:3,maximumFractionDigits:3});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nz=v=>{const n=num(v);return n?(Number.isInteger(n)?n:(+n.toFixed(2))):'';};
+
+// location grouping
+const LOC={'11':'Chennai','38':'Chennai','22':'Salem','07':'Salem'};
+const LOCNAME={'11':'Chennai · sheet/plate (11)','38':'Chennai · coil (38)','22':'Salem · subcontract (22)','07':'Salem (07)','39':'In transit (39)','50':'Ready to steel (50)','51':'Pending (51)','52':'Chennai subcontract (52)','45':'Job work (45)','46':'Consumables (46)'};
+// warehouses shown in Stock Master (exclude job-work 45 and consumables 46)
+const SHOWN=['11','38','22','07','39','50','51','52'];
+function brandOf(name){const n=(name||'').toUpperCase();for(const b of['NMDC','JSW','SSP','AMNS','TATA','NSL','SAIL'])if(n.includes(b))return b;return 'OTHER';}
+
+let STOCK=[], COILS=[], META={}, TAB='summary', pivotSel=null, locFilter='';
+
+async function load(){
+  document.getElementById('errbox').innerHTML='';
+  try{
+    const b='?t='+Date.now();
+    const [s,c,me]=await Promise.all([
+      fetch('mis_stock.csv'+b).then(r=>{if(!r.ok)throw 0;return r.text();}),
+      fetch('coils.csv'+b).then(r=>r.ok?r.text():''),
+      fetch('mis_meta.json'+b).then(r=>r.ok?r.json():{}).catch(()=>({}))
+    ]);
+    STOCK=parseCSV(s).filter(r=>SHOWN.includes(r.WhsCode)).map(r=>({
+      ItemCode:r.ItemCode,ItemName:r.ItemName,Group:r.ItemGroup,WhsCode:r.WhsCode,
+      Brand:brandOf(r.ItemName),Grade:(r.Grade||'').trim(),
+      T:num(r.Thickness),W:num(r.Width),L:num(r.Length),
+      OnHand:num(r.OnHand),Committed:num(r.Committed),OnOrder:num(r.OnOrder)
+    }));
+    // SAP has some stale open-PO quantities (structurals) with absurd OnOrder; clamp so the
+    // Incoming column stays meaningful. A clamp is flagged, not silently dropped.
+    let clamped=0;
+    STOCK.forEach(r=>{
+      const cap=Math.max(500, r.OnHand*5);           // generous: 5x current stock or 500 MT
+      if(r.OnOrder>cap){r.OnOrderRaw=r.OnOrder;r.OnOrder=0;clamped++;}
+      r.Available=r.OnHand-r.Committed;
+    });
+    window.__clamped=clamped;
+    COILS=c?parseCSV(c).map(r=>({...r,Quantity:num(r.Quantity),T:num(r.Thickness),W:num(r.Width),
+      age:r.GRPODate?Math.max(0,Math.round((Date.now()-new Date(r.GRPODate))/864e5)):null})):[];
+    META=me||{};
+    const gen=META.generated?new Date(META.generated):null;
+    document.getElementById('asof').textContent='as of '+(gen||new Date()).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('stale').style.display=(gen&&Date.now()-gen.getTime()>3*3600e3)?'':'none';
+    buildFilters(); render();
+    document.getElementById('rowcount').textContent=`${STOCK.length} stock rows · ${COILS.length} coil batches`+(window.__clamped?` · ${window.__clamped} items with implausible open-PO qty excluded from Incoming`:'');
+  }catch(e){
+    document.getElementById('errbox').innerHTML='<div class="err">Couldn\'t load stock data — the refresh job may not have pushed yet.</div>';
+  }
+}
+
+function buildFilters(){
+  const fill=(id,vals)=>{const el=document.getElementById(id),p=el.value;
+    el.innerHTML=el.options[0].outerHTML+vals.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');el.value=vals.includes(p)?p:'';};
+  fill('brand',[...new Set(STOCK.map(r=>r.Brand))].sort());
+  fill('grade',[...new Set(STOCK.map(r=>r.Grade).filter(Boolean))].sort());
+}
+function resetFilters(){locFilter='';['loc','brand','grade'].forEach(id=>document.getElementById(id).value='');render();}
+
+function filtered(){
+  const loc=document.getElementById('loc').value, br=document.getElementById('brand').value, gr=document.getElementById('grade').value;
+  return STOCK.filter(r=>{
+    if(locFilter && r.WhsCode!==locFilter) return false;
+    if(loc==='chennai' && LOC[r.WhsCode]!=='Chennai') return false;
+    if(loc==='salem'   && LOC[r.WhsCode]!=='Salem') return false;
+    if(loc && loc.length<=2 && r.WhsCode!==loc) return false;
+    if(br && r.Brand!==br) return false;
+    if(gr && r.Grade!==gr) return false;
+    return true;
+  });
+}
+
+function setTab(t){
+  TAB=t;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
+  render();
+}
+
+function render(){
+  // location KPI strip — always from full stock (not the location filter)
+  const byLoc={}; STOCK.forEach(r=>{byLoc[r.WhsCode]=(byLoc[r.WhsCode]||0)+r.OnHand;});
+  const chn=(byLoc['11']||0)+(byLoc['38']||0), slm=(byLoc['22']||0)+(byLoc['07']||0);
+  const total=STOCK.reduce((a,r)=>a+r.OnHand,0);
+  const chip=(key,lab,val,sub)=>`<div class="kpi ${locFilter===key||(key==='all'&&!locFilter&&!document.getElementById('loc').value)?'on':''}" onclick="pickLoc('${key}')"><div class="lab">${lab}</div><div class="val">${f0(val)}<small> MT</small></div><div class="sub">${sub}</div></div>`;
+  document.getElementById('locKpis').innerHTML=
+    chip('all','Total stock',total,'Chennai + Salem + transit')+
+    chip('chennai','Chennai',chn,'sheet/plate 11 · coil 38')+
+    chip('salem','Salem',slm,'subcontract 22 · 07')+
+    chip('38','Chennai coil (38)',byLoc['38']||0,(COILS.length)+' batches')+
+    chip('39','In transit (39)',byLoc['39']||0,'stock in transit');
+
+  const rows=filtered();
+  document.getElementById('fcount').textContent=`${rows.length} items · ${f1(rows.reduce((a,r)=>a+r.OnHand,0))} MT`;
+  if(TAB==='summary') renderSummary(rows);
+  else if(TAB==='pivot') renderPivot();
+  else if(TAB==='items') renderItems();
+  else renderCoils();
+}
+
+function pickLoc(key){
+  const sel=document.getElementById('loc');
+  if(key==='all'){locFilter='';sel.value='';}
+  else if(key==='chennai'||key==='salem'){locFilter='';sel.value=key;}
+  else {locFilter=(locFilter===key?'':key);sel.value='';}
+  render();
+}
+
+// ---- SUMMARY ----
+function renderSummary(rows){
+  // by warehouse
+  const w={}; rows.forEach(r=>{const o=w[r.WhsCode]??={h:0,c:0,o:0,n:0};o.h+=r.OnHand;o.c+=r.Committed;o.o+=r.OnOrder;o.n++;});
+  const order=SHOWN.filter(x=>w[x]); const tot={h:0,c:0,o:0,n:0};
+  order.forEach(x=>{tot.h+=w[x].h;tot.c+=w[x].c;tot.o+=w[x].o;tot.n+=w[x].n;});
+  const max=Math.max(1,...order.map(x=>w[x].h));
+  document.getElementById('locTable').innerHTML=order.length?`<table><thead><tr><th>Warehouse</th><th class="num">Items</th><th class="num">On hand</th><th></th><th class="num">Booked</th><th class="num">Incoming</th><th class="num">Available</th></tr></thead><tbody>
+    ${order.map(x=>`<tr><td>${esc(LOCNAME[x]||x)}</td><td class="num">${w[x].n}</td><td class="num"><b>${f1(w[x].h)}</b></td><td style="width:120px"><span class="bar" style="width:${w[x].h/max*100}px"></span></td><td class="num">${w[x].c?f1(w[x].c):''}</td><td class="num">${w[x].o?f1(w[x].o):''}</td><td class="num">${f1(w[x].h-w[x].c)}</td></tr>`).join('')}
+    <tr class="tot"><td>Total</td><td class="num">${tot.n}</td><td class="num">${f1(tot.h)}</td><td></td><td class="num">${f1(tot.c)}</td><td class="num">${f1(tot.o)}</td><td class="num">${f1(tot.h-tot.c)}</td></tr></tbody></table>`:'<div class="empty">No stock for this filter.</div>';
+
+  // brand -> grade tree
+  const t={}; rows.forEach(r=>{const b=t[r.Brand]??={h:0,c:0,o:0,g:{}};b.h+=r.OnHand;b.c+=r.Committed;b.o+=r.OnOrder;
+    const g=b.g[r.Grade||'—']??={h:0,c:0,o:0,n:0};g.h+=r.OnHand;g.c+=r.Committed;g.o+=r.OnOrder;g.n++;});
+  const brands=Object.keys(t).sort((a,b)=>t[b].h-t[a].h);
+  let html=`<table><thead><tr><th>Brand / grade</th><th class="num">On hand</th><th class="num">Booked</th><th class="num">Incoming</th><th class="num">Available</th></tr></thead><tbody>`;
+  const gt={h:0,c:0,o:0};
+  brands.forEach(b=>{const o=t[b];gt.h+=o.h;gt.c+=o.c;gt.o+=o.o;const open=exp.has(b);
+    html+=`<tr class="grp" onclick="tog('${esc(b)}')"><td><span class="tw">${open?'▾':'▸'}</span><span class="tag">${esc(b)}</span></td><td class="num">${f1(o.h)}</td><td class="num">${o.c?f1(o.c):''}</td><td class="num">${o.o?f1(o.o):''}</td><td class="num">${f1(o.h-o.c)}</td></tr>`;
+    if(open) Object.keys(o.g).sort((x,y)=>o.g[y].h-o.g[x].h).forEach(g=>{const gg=o.g[g];
+      html+=`<tr class="itm"><td>${esc(g)} <span class="muted">· ${gg.n} items</span></td><td class="num">${f1(gg.h)}</td><td class="num">${gg.c?f1(gg.c):''}</td><td class="num">${gg.o?f1(gg.o):''}</td><td class="num">${f1(gg.h-gg.c)}</td></tr>`;});
+  });
+  html+=`<tr class="tot"><td>Total</td><td class="num">${f1(gt.h)}</td><td class="num">${f1(gt.c)}</td><td class="num">${f1(gt.o)}</td><td class="num">${f1(gt.h-gt.c)}</td></tr></tbody></table>`;
+  document.getElementById('brandTable').innerHTML=brands.length?html:'<div class="empty">No stock for this filter.</div>';
+}
+let exp=new Set(); function tog(b){exp.has(b)?exp.delete(b):exp.add(b);renderSummary(filtered());}
+
+// ---- PIVOT ----
+function renderPivot(){
+  const meas=document.getElementById('measure').value, rows=filtered();
+  const data={},Ws=new Set(),Ts=new Set(),colTot={};
+  const STDW=new Set([1250,1500,2000,2500]);
+  rows.forEach(r=>{if(!r.T||!r.W)return;if(!document.getElementById('pivotAllW').checked&&!STDW.has(r.W))return;const v=r[meas]||0;if(v<=0)return;
+    (data[r.T]??={})[r.W]=(data[r.T][r.W]||0)+v;Ts.add(r.T);Ws.add(r.W);colTot[r.W]=(colTot[r.W]||0)+v;});
+  const ts=[...Ts].sort((a,b)=>a-b), ws=[...Ws].sort((a,b)=>a-b);
+  document.getElementById('pivotSub').textContent=meas.replace('OnHand','On hand').replace('OnOrder','Incoming')+' · MT · thickness (rows) × width (cols)';
+  if(!ts.length){document.getElementById('pivotTable').innerHTML='<div class="empty">No dimensioned stock for this filter.</div>';return;}
+  const grand=Object.values(colTot).reduce((a,b)=>a+b,0), max=Math.max(...ts.flatMap(t=>ws.map(w=>data[t][w]||0)));
+  let h=`<table class="pivot"><thead><tr><th>T \\ W</th>${ws.map(w=>`<th class="num">${w}</th>`).join('')}<th class="num">Total</th></tr></thead><tbody>`;
+  ts.forEach(t=>{const rowTot=ws.reduce((a,w)=>a+(data[t][w]||0),0);
+    h+=`<tr><td class="num"><b>${t}</b></td>${ws.map(w=>{const v=data[t][w]||0;const hot=v>max*0.5?' hot':'';return `<td class="num cell${hot}${pivotSel&&pivotSel.t===t&&pivotSel.w===w?' sel':''}" ${v?`onclick="drillPivot(${t},${w})"`:''}>${v?f1(v):''}</td>`;}).join('')}<td class="num"><b>${f1(rowTot)}</b></td></tr>`;});
+  h+=`<tr class="tot"><td>Total</td>${ws.map(w=>`<td class="num">${f1(colTot[w]||0)}</td>`).join('')}<td class="num">${f1(grand)}</td></tr></tbody></table>`;
+  document.getElementById('pivotTable').innerHTML=h;
+  if(pivotSel) drillPivot(pivotSel.t,pivotSel.w);
+}
+function drillPivot(t,w){
+  pivotSel={t,w};
+  document.querySelectorAll('#pivotTable td.cell').forEach(td=>td.classList.remove('sel'));
+  renderPivotHighlight();
+  const meas=document.getElementById('measure').value;
+  const rows=filtered().filter(r=>r.T===t&&r.W===w&&(r[meas]||0)>0).sort((a,b)=>b[meas]-a[meas]);
+  document.getElementById('pivotDrillCard').style.display='';
+  document.getElementById('pivotDrillSub').textContent=`${t} × ${w} · ${rows.length} items · ${f1(rows.reduce((a,r)=>a+(r[meas]||0),0))} MT`;
+  document.getElementById('pivotDrill').innerHTML=`<table><thead><tr><th>Item</th><th>Brand</th><th>Grade</th><th>Whs</th><th class="num">On hand</th><th class="num">Booked</th><th class="num">Available</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.ItemName)}<div class="muted">${esc(r.ItemCode)}</div></td><td><span class="tag">${esc(r.Brand)}</span></td><td class="muted">${esc(r.Grade)}</td><td class="num">${r.WhsCode}</td><td class="num"><b>${f3(r.OnHand)}</b></td><td class="num">${r.Committed?f3(r.Committed):''}</td><td class="num">${f3(r.Available)}</td></tr>`).join('')}</tbody></table>`;
+}
+function renderPivotHighlight(){document.querySelectorAll('#pivotTable td.cell').forEach(td=>td.classList.toggle('sel', td.getAttribute('onclick')===`drillPivot(${pivotSel.t},${pivotSel.w})`));}
+
+// ---- ITEMS ----
+function itemRows(){
+  const q=(document.getElementById('itemQ').value||'').toLowerCase(), hide=document.getElementById('hideZero').checked;
+  return filtered().filter(r=>(!hide||r.OnHand>0)&&(!q||r.ItemName.toLowerCase().includes(q)||r.ItemCode.toLowerCase().includes(q)||r.Grade.toLowerCase().includes(q))).sort((a,b)=>b.OnHand-a.OnHand);
+}
+function renderItems(){
+  const rows=itemRows(), tot=rows.reduce((a,r)=>a+r.OnHand,0);
+  document.getElementById('itemsSub').textContent=`${rows.length} items · ${f1(tot)} MT`;
+  document.getElementById('itemsTable').innerHTML=rows.length?`<table><thead><tr><th>Item</th><th>Brand</th><th>Grade</th><th class="num">T</th><th class="num">W</th><th class="num">L</th><th>Whs</th><th class="num">On hand</th><th class="num">Booked</th><th class="num">Incoming</th><th class="num">Available</th></tr></thead><tbody>
+    ${rows.slice(0,600).map(r=>`<tr><td><b>${esc(r.ItemName)}</b><div class="muted">${esc(r.ItemCode)}</div></td><td><span class="tag">${esc(r.Brand)}</span></td><td class="muted">${esc(r.Grade)}</td><td class="num">${nz(r.T)}</td><td class="num">${nz(r.W)}</td><td class="num">${nz(r.L)}</td><td class="num">${r.WhsCode}</td><td class="num"><b>${f3(r.OnHand)}</b></td><td class="num">${r.Committed?f3(r.Committed):''}</td><td class="num">${r.OnOrder?f3(r.OnOrder):''}</td><td class="num">${f3(r.Available)}</td></tr>`).join('')}
+    <tr class="tot"><td colspan="7">Total${rows.length>600?' (showing first 600)':''}</td><td class="num">${f3(tot)}</td><td class="num">${f3(rows.reduce((a,r)=>a+r.Committed,0))}</td><td class="num">${f3(rows.reduce((a,r)=>a+r.OnOrder,0))}</td><td class="num">${f3(rows.reduce((a,r)=>a+r.Available,0))}</td></tr></tbody></table>`:'<div class="empty">No items match.</div>';
+}
+function exportItems(){
+  const rows=itemRows();
+  const head=['ItemCode','ItemName','Brand','Grade','Thickness','Width','Length','WhsCode','OnHand','Committed','OnOrder','Available'];
+  const csv=[head.join(',')].concat(rows.map(r=>[r.ItemCode,`"${r.ItemName}"`,r.Brand,r.Grade,r.T,r.W,r.L,r.WhsCode,r.OnHand,r.Committed,r.OnOrder,r.Available].join(','))).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='stock_master_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
+
+// ---- COILS ----
+function renderCoils(){
+  const q=(document.getElementById('coilQ').value||'').toLowerCase(), ageMin=num(document.getElementById('coilAge').value), grp=document.getElementById('coilGroup').checked;
+  let rows=COILS.filter(r=>(!q||[r.ItemName,r.BatchNum,r.CoilNo,r.Bin].some(v=>(v||'').toLowerCase().includes(q)))&&(!ageMin||(r.age!==null&&r.age>=ageMin)));
+  const tot=rows.reduce((a,r)=>a+r.Quantity,0);
+  document.getElementById('coilsSub').textContent=`${rows.length} batches · ${f3(tot)} MT`;
+  if(grp){
+    const m={}; rows.forEach(r=>{const o=m[r.ItemName]??={q:0,n:0,age:0};o.q+=r.Quantity;o.n++;if(r.age!==null)o.age=Math.max(o.age,r.age);});
+    document.getElementById('coilsTable').innerHTML=Object.keys(m).length?`<table><thead><tr><th>Item</th><th class="num">Coils</th><th class="num">MT</th><th class="num">Oldest (d)</th></tr></thead><tbody>
+      ${Object.entries(m).sort((a,b)=>b[1].q-a[1].q).map(([n,o])=>`<tr><td>${esc(n)}</td><td class="num">${o.n}</td><td class="num"><b>${f3(o.q)}</b></td><td class="num${o.age>=90?' ':''}" style="${o.age>=90?'color:var(--red);font-weight:700':''}">${o.age||''}</td></tr>`).join('')}
+      <tr class="tot"><td>Total</td><td class="num">${rows.length}</td><td class="num">${f3(tot)}</td><td></td></tr></tbody></table>`:'<div class="empty">No coils match.</div>';
+    return;
+  }
+  rows=rows.sort((a,b)=>(b.age||0)-(a.age||0));
+  document.getElementById('coilsTable').innerHTML=rows.length?`<table><thead><tr><th>Item</th><th>Grade</th><th class="num">T</th><th class="num">W</th><th>Batch</th><th>Coil no</th><th>Bin</th><th class="num">GRPO</th><th class="num">Age (d)</th><th class="num">MT</th></tr></thead><tbody>
+    ${rows.slice(0,600).map(r=>`<tr><td><b>${esc(r.ItemName)}</b></td><td class="muted">${esc(r.Grade)}</td><td class="num">${nz(r.T)}</td><td class="num">${nz(r.W)}</td><td class="mono">${esc(r.BatchNum)}</td><td class="mono">${esc(r.CoilNo)}</td><td class="muted">${esc(r.Bin)}</td><td class="num">${esc(r.GRPONo)}</td><td class="num" style="${r.age>=90?'color:var(--red);font-weight:700':''}">${r.age??''}</td><td class="num"><b>${f3(r.Quantity)}</b></td></tr>`).join('')}
+    <tr class="tot"><td colspan="9">Total${rows.length>600?' (showing first 600)':''}</td><td class="num">${f3(tot)}</td></tr></tbody></table>`:'<div class="empty">No coils match.</div>';
+}
+
+load();
+</script>
+</body>
+</html>

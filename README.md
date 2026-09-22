@@ -7,6 +7,7 @@ Same model as the weighbridge dashboard: PowerShell pushes CSVs from SAP, GitHub
 | File | Purpose |
 |---|---|
 | `index.html` | HR stock detail (Coils / Plates tabs, batch drill-down, filters, chart) |
+| `stock-master.html` | **Stock Master** — live SAP stock by location (Chennai 11/38, Salem 22/07, transit), brand→grade tree, thickness×width pivot with cell drill-down, full item list with CSV export, and WH-38 coil batch/bin/age detail. Reads `mis_stock.csv` + `coils.csv`. |
 | `mis.html` | **MIS dashboard** — Overview (the 4 Excel pivots), Sales, Purchase, Stock tabs with FY / month selector, category → group → item drill-down, top customers / vendors, warehouse × category drill-down |
 | `report.html` | Print-styled page mirroring the whole Excel MIS sheet — screenshotted to PNG for WhatsApp |
 | `refresh_stock.ps1` | Runs all 5 SAP queries → writes the CSVs below + `mis_meta.json` → single git push (lock-protected) |
@@ -39,6 +40,7 @@ Sample MIS CSVs are committed from the discovery run (group-level only); the fir
 - Sales category comes from the item group; purchase category comes from the line-level `U_MOU` UDF (so NMDC / TMT-EQR show as their own rows, as in Excel).
 - Job work (customer-owned coils, e.g. Wheels India): items `JW…` in group "HR Coil", warehouse 45, documents tagged `U_VSPJWTX='Job Work'`.
   `mis_sales.csv` carries a `JW` flag; the pages show own-material sales in the category rows and job-work conversion tonnage as a separate line.
+- Stock Master shows warehouses 11, 38, 22, 07, 39, 50, 51, 52 (excludes job-work 45 and consumables 46). Salem = WH 22 + 07; it reconciles to the old Salem sheet (989.8 t WH22 ≈ 977 t sheet). Stale open-PO quantities on some structurals are clamped out of the Incoming column and flagged in the footer count.
 - Financial year = 1 April; data is pulled from the start of the previous FY so the FY selector can compare years.
 
 ## Daily WhatsApp  (next step — separate Render service)
