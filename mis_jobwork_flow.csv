@@ -81,3 +81,4 @@ Yr,Mth,Kind,CardName,InQty,OutQty,Lines
 2026,10,Issued to process (GI),Stock Regrouping,0.000000,0.459000,4
 2026,10,Processed (GR),Stock Excess / Shortage,0.285000,0.000000,2
 2026,10,Processed (GR),Stock Regrouping,0.459000,0.000000,1
+2026,10,Received (Transfer),WHEELS INDIA LIMITED (VENDOR),20.340000,0.000000,1
