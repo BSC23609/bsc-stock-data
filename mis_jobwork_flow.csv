@@ -79,9 +79,9 @@ Yr,Mth,Kind,CardName,InQty,OutQty,Lines
 2026,9,Received (Transfer),WHEELS INDIA LIMITED (VENDOR),612.849000,0.000000,28
 2026,10,Dispatched (Delivery),WHEELS INDIA LIMITED (CUSTOMER),8.200000,230.567000,35
 2026,10,Issued to process (GI),Stock Regrouping,0.000000,0.595000,5
-2026,10,Issued to process (GI),WIP - Jobwork,0.000000,242.877000,30
+2026,10,Issued to process (GI),WIP - Jobwork,0.000000,283.686000,32
 2026,10,Processed (GR),Stock Excess / Shortage,0.947000,0.000000,6
 2026,10,Processed (GR),Stock Regrouping,0.595000,0.000000,3
-2026,10,Processed (GR),WIP - Jobwork,242.877000,0.000000,30
+2026,10,Processed (GR),WIP - Jobwork,283.686000,0.000000,32
 2026,10,Received (Transfer),STEEL SHOPPE INDIA PRIVATE LIMITED,20.340000,0.000000,4
 2026,10,Received (Transfer),WHEELS INDIA LIMITED (VENDOR),319.140000,0.000000,14
