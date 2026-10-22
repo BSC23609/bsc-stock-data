@@ -82,7 +82,7 @@ Yr,Mth,Kind,CardName,InQty,OutQty,Lines
 2026,10,Issued to process (GI),WIP - Jobwork,0.000000,832.499000,93
 2026,10,Processed (GR),Stock Excess / Shortage,1.228000,0.000000,10
 2026,10,Processed (GR),STOCK IN TRADE - JOBWORK,0.288000,0.000000,1
-2026,10,Processed (GR),Stock Regrouping,3.008000,0.000000,7
+2026,10,Processed (GR),Stock Regrouping,5.828000,0.000000,8
 2026,10,Processed (GR),WIP - Jobwork,833.309000,0.000000,94
 2026,10,Received (Transfer),STEEL SHOPPE INDIA PRIVATE LIMITED,20.340000,0.000000,4
 2026,10,Received (Transfer),WHEELS INDIA LIMITED (VENDOR),843.865000,0.000000,33
