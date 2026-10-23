@@ -80,7 +80,7 @@ Yr,Mth,Kind,CardName,InQty,OutQty,Lines
 2026,10,Dispatched (Delivery),WHEELS INDIA LIMITED (CUSTOMER),8.200000,567.827000,88
 2026,10,Issued to process (GI),Stock Regrouping,0.000000,6.658000,13
 2026,10,Issued to process (GI),WIP - Jobwork,0.000000,896.313000,98
-2026,10,Processed (GR),Stock Excess / Shortage,1.397000,0.000000,14
+2026,10,Processed (GR),Stock Excess / Shortage,3.464000,0.000000,15
 2026,10,Processed (GR),STOCK IN TRADE - JOBWORK,0.288000,0.000000,1
 2026,10,Processed (GR),Stock Regrouping,5.828000,0.000000,8
 2026,10,Processed (GR),WIP - Jobwork,897.123000,0.000000,99
