@@ -1,2 +1,3 @@
 Machine Code,Machine Name,Today Prime Nos,Today Defective Nos,Today Scrap Nos,Today Prime Qty,Today Defective Qty,Today Scrap Qty,Month Prime Nos,Month Defective Nos,Month Scrap Nos,Month Prime Qty,Month Defective Qty,Month Scrap Qty
 MACHINE01 (MDS),CTL 6-25 MM (MDS),2,0,0,0.402000,0.000000,0.000000,2,0,0,0.402000,0.000000,0.000000
+MACHINE02 (MDS),CTL 01-06 MM (MDS),135,0,1,10.000000,0.000000,0.018000,135,0,1,10.000000,0.000000,0.018000
