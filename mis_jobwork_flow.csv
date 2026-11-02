@@ -86,5 +86,5 @@ Yr,Mth,Kind,CardName,InQty,OutQty,Lines
 2026,10,Processed (GR),WIP - Jobwork,1407.347000,0.000000,156
 2026,10,Received (Transfer),STEEL SHOPPE INDIA PRIVATE LIMITED,66.000000,43.130000,18
 2026,10,Received (Transfer),WHEELS INDIA LIMITED (VENDOR),1109.085000,0.000000,45
-2026,11,Issued to process (GI),WIP - Jobwork,0.000000,0.402000,2
-2026,11,Processed (GR),WIP - Jobwork,0.402000,0.000000,2
+2026,11,Issued to process (GI),WIP - Jobwork,0.000000,20.651000,3
+2026,11,Processed (GR),WIP - Jobwork,20.651000,0.000000,3
