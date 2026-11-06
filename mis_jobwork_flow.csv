@@ -88,9 +88,9 @@ Yr,Mth,Kind,CardName,InQty,OutQty,Lines
 2026,10,Received (Transfer),WHEELS INDIA LIMITED (VENDOR),1109.085000,0.000000,45
 2026,11,Dispatched (Delivery),WHEELS INDIA LIMITED (CUSTOMER),0.000000,242.254000,37
 2026,11,Issued to process (GI),Stock Regrouping,0.000000,0.995000,9
-2026,11,Issued to process (GI),WIP - Jobwork,0.000000,362.207000,38
+2026,11,Issued to process (GI),WIP - Jobwork,0.000000,382.567000,39
 2026,11,Processed (GR),Stock Excess / Shortage,0.481000,0.000000,5
 2026,11,Processed (GR),STOCK IN TRADE - JOBWORK,0.005000,0.000000,1
 2026,11,Processed (GR),Stock Regrouping,1.224000,0.000000,12
-2026,11,Processed (GR),WIP - Jobwork,362.207000,0.000000,38
+2026,11,Processed (GR),WIP - Jobwork,382.567000,0.000000,39
 2026,11,Received (Transfer),CRAYON ROOFING & STRUCTURES  (PURCHASE),1.600000,0.000000,1
