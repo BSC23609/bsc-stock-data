@@ -17,6 +17,7 @@
 
 $ErrorActionPreference = "Stop"
 $RepoDir  = "C:\github\bsc-stock-data"
+$StockDir = $RepoDir
 $Cfg      = "C:\scripts\config.ini"
 $LogFile  = "C:\scripts\refresh_stock.log"
 
@@ -237,6 +238,34 @@ WHERE B.WhsCode='45' AND B.Quantity<>0
 ORDER BY B.Quantity DESC
 "@
 
+# ---- Wheels India job-work stock (WH45, this customer only) ----
+$wheelsSql = @"
+;WITH WIRItems AS (
+    SELECT W.ItemCode, I.ItemName, I.ItmsGrpCod, I.U_Grade, I.U_Thick, I.U_Width, I.U_Length1, W.OnHand
+    FROM OITW W INNER JOIN OITM I ON I.ItemCode = W.ItemCode
+    WHERE W.WhsCode = '45' AND W.OnHand > 0
+      AND (I.ItemName LIKE '%WIR0%' OR I.ItemName LIKE '%WIR %' OR I.ItemName LIKE '%WIR')
+),
+Batch AS (  -- one representative batch per item (the largest), for coil/mother/age reference
+    SELECT B.ItemCode, B.BatchNum, B.U_CoilNo, B.U_Mothercoil, B.InDate,
+           ROW_NUMBER() OVER (PARTITION BY B.ItemCode ORDER BY B.Quantity DESC) AS rn,
+           COUNT(*) OVER (PARTITION BY B.ItemCode) AS BatchCount
+    FROM OIBT B WHERE B.WhsCode='45' AND B.Quantity <> 0
+)
+SELECT
+    WI.ItemCode, WI.ItemName, G.ItmsGrpNam AS ItemGroup,
+    '' AS OwnerCode, '' AS OwnerName,
+    ISNULL(BX.BatchNum,'') AS BatchNum, ISNULL(BX.U_CoilNo,'') AS CoilNo, ISNULL(BX.U_Mothercoil,'') AS Mothercoil,
+    ISNULL(WI.U_Grade,'') AS Grade, WI.U_Thick AS Thick, WI.U_Width AS Width, WI.U_Length1 AS Length,
+    WI.OnHand AS Quantity,          -- authoritative on-hand (reconciles to SAP)
+    ISNULL(BX.BatchCount,0) AS BatchCount,
+    DATEDIFF(day, BX.InDate, GETDATE()) AS AgeDays
+FROM WIRItems WI
+LEFT JOIN Batch BX ON BX.ItemCode = WI.ItemCode AND BX.rn = 1
+LEFT JOIN OITB G ON G.ItmsGrpCod = WI.ItmsGrpCod
+ORDER BY WI.ItemName
+"@
+
 function Invoke-SqlDated($sql, [string]$startDate){
   $conn=New-Object System.Data.SqlClient.SqlConnection $connStr
   $conn.Open()
@@ -273,6 +302,9 @@ if(Test-Path $LockPath){
 }
 New-Item $LockPath -ItemType File -Force | Out-Null
 
+# make sure the stock\ subfolder exists
+if(-not (Test-Path $StockDir)){ New-Item $StockDir -ItemType Directory -Force | Out-Null }
+
 # Financial year starts 1 April. Pull from the start of the PREVIOUS FY.
 $now=Get-Date; $fy= if($now.Month -ge 4){$now.Year}else{$now.Year-1}
 $StartDate=(Get-Date -Year ($fy-1) -Month 4 -Day 1).ToString('yyyy-MM-dd')
@@ -307,8 +339,8 @@ try{
 
   # write WITHOUT BOM (dashboard strips BOM anyway, but keep it clean)
   $enc=New-Object System.Text.UTF8Encoding($false)
-  [IO.File]::WriteAllText("$RepoDir\coils.csv",  ($coilOut  | ConvertTo-Csv -NoTypeInformation) -join "`r`n", $enc)
-  [IO.File]::WriteAllText("$RepoDir\plates.csv", ($plateOut | ConvertTo-Csv -NoTypeInformation) -join "`r`n", $enc)
+  [IO.File]::WriteAllText("$StockDir\coils.csv",  ($coilOut  | ConvertTo-Csv -NoTypeInformation) -join "`r`n", $enc)
+  [IO.File]::WriteAllText("$StockDir\plates.csv", ($plateOut | ConvertTo-Csv -NoTypeInformation) -join "`r`n", $enc)
   Log "CSVs written."
 
   # ---- MIS: stock / sales / purchase ----
@@ -317,17 +349,23 @@ try{
   Log "Querying MIS purchase…"; $misPurch=Invoke-SqlDated $misPurchSql $StartDate;  Log "  $($misPurch.Rows.Count) rows"
   Log "Querying job work…";     $jwFlow=Invoke-SqlDated $misJwFlowSql $StartDate;    $jwDocs=Invoke-SqlDated $misJwDocsSql $StartDate;  $jwBal=Invoke-Sql $misJwBalanceSql
   Log "  flow $($jwFlow.Rows.Count) · docs $($jwDocs.Rows.Count) · balance $($jwBal.Rows.Count) rows"
+  Log "Querying Wheels India (WH45)…"; $wheels=Invoke-Sql $wheelsSql; Log "  $($wheels.Rows.Count) rows"
 
   if(@($misStock.Rows).Count -eq 0){ throw "MIS stock query returned 0 rows — not overwriting dashboard data." }
-  [IO.File]::WriteAllText("$RepoDir\mis_stock.csv",    (ConvertTo-CsvText $misStock), $enc)
-  [IO.File]::WriteAllText("$RepoDir\mis_sales.csv",    (ConvertTo-CsvText $misSales), $enc)
-  [IO.File]::WriteAllText("$RepoDir\mis_purchase.csv", (ConvertTo-CsvText $misPurch), $enc)
-  [IO.File]::WriteAllText("$RepoDir\mis_jobwork_flow.csv",    (ConvertTo-CsvText $jwFlow), $enc)
-  [IO.File]::WriteAllText("$RepoDir\mis_jobwork_docs.csv",    (ConvertTo-CsvText $jwDocs), $enc)
-  [IO.File]::WriteAllText("$RepoDir\mis_jobwork_balance.csv", (ConvertTo-CsvText $jwBal), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_stock.csv",    (ConvertTo-CsvText $misStock), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_sales.csv",    (ConvertTo-CsvText $misSales), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_purchase.csv", (ConvertTo-CsvText $misPurch), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_jobwork_flow.csv",    (ConvertTo-CsvText $jwFlow), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_jobwork_docs.csv",    (ConvertTo-CsvText $jwDocs), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_jobwork_balance.csv", (ConvertTo-CsvText $jwBal), $enc)
+  # Wheels India data (same data repo, root)
+  $WheelsDir = $RepoDir
+  if(-not (Test-Path $WheelsDir)){ New-Item $WheelsDir -ItemType Directory -Force | Out-Null }
+  [IO.File]::WriteAllText("$WheelsDir\wheels_stock.csv", (ConvertTo-CsvText $wheels), $enc)
+  [IO.File]::WriteAllText("$WheelsDir\wheels_meta.json", (@{ generated=$now.ToString('yyyy-MM-ddTHH:mm:ss'); rows=$wheels.Rows.Count } | ConvertTo-Json -Compress), $enc)
   $meta=@{ generated=$now.ToString('yyyy-MM-ddTHH:mm:ss'); fyStart="$fy-04-01"; dataFrom=$StartDate;
            rows=@{ coils=$coils.Rows.Count; plates=$plates.Rows.Count; stock=$misStock.Rows.Count; sales=$misSales.Rows.Count; purchase=$misPurch.Rows.Count; jobwork=$jwDocs.Rows.Count } }
-  [IO.File]::WriteAllText("$RepoDir\mis_meta.json", ($meta | ConvertTo-Json -Compress), $enc)
+  [IO.File]::WriteAllText("$StockDir\mis_meta.json", ($meta | ConvertTo-Json -Compress), $enc)
   Log "MIS CSVs written."
 
   # ---- push (pull-first to avoid the race we hit on weighbridge) ----
@@ -336,7 +374,7 @@ try{
   # Judge git by exit code only.
   $prevEap=$ErrorActionPreference; $ErrorActionPreference='Continue'
   try{
-    git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_jobwork_flow.csv mis_jobwork_docs.csv mis_jobwork_balance.csv mis_meta.json 2>&1 | Out-Null
+    git add coils.csv plates.csv mis_stock.csv mis_sales.csv mis_purchase.csv mis_jobwork_flow.csv mis_jobwork_docs.csv mis_jobwork_balance.csv mis_meta.json wheels_stock.csv wheels_meta.json 2>&1 | Out-Null
     $stamp=[DateTime]::Now.ToString('yyyy-MM-dd HH:mm')
     git commit -m "stock refresh $stamp" 2>&1 | Out-Null          # no-op if nothing changed
     # commit first, THEN rebase: -X theirs = keep our freshly generated CSVs on conflict,
